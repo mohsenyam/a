@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>نمایشگر مدل سه‌بعدی با VR پیشرفته</title>
+
+  <!-- استفاده از آخرین نسخه model-viewer -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer@^2.1.1/dist/model-viewer.min.js"></script>
+  <script nomodule src="https://app.unpkg.com/@google/model-viewer@1.4.1/files/dist/model-viewer-legacy.js"></script>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <style>
+    body {
+      margin: 0;
+      background-color: #f8f8f8;
+      direction: rtl;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 854px;
+      aspect-ratio: 854 / 480;
+      position: relative;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background-color: var(--model-bg-color, #fff);
+      border-radius: 8px;
+      transition: background-color 0.3s ease;
+    }
+
+    /* حالت VR استریوسکوپیک */
+    model-viewer[data-vr-active] {
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+
+    model-viewer[data-vr-active]::before,
+    model-viewer[data-vr-active]::after {
+      content: "";
+      width: 50%;
+      height: 100%;
+      background: transparent;
+    }
+
+    #progress-slider {
+      position: absolute;
+      bottom: 64px;
+      left: 0;
+      right: 0;
+      margin: 0 20px;
+      height: 6px;
+      appearance: none;
+      background: #ccc;
+      border-radius: 4px;
+      z-index: 9;
+      accent-color: #007bff;
+      direction: ltr;
+      transition: opacity 0.5s ease;
+      opacity: 1;
+    }
+
+    #progress-slider.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .control-buttons {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      z-index: 10;
+      transition: opacity 0.5s ease;
+      opacity: 1;
+    }
+
+    .control-buttons.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .animation-controls.hidden {
+      display: none !important;
+    }
+
+    .icon-button {
+      width: 48px;
+      height: 48px;
+      background-color: transparent;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.3s, box-shadow 0.3s;
+    }
+
+    .icon-button:hover {
+      background-color: rgba(0, 123, 255, 0.1);
+      box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+    }
+
+    .icon-button svg {
+      width: 24px;
+      height: 24px;
+      fill: #ccc;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      display: none;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+      padding: 30px;
+      font-size: 18px;
+      text-align: right;
+      z-index: 20;
+      border-radius: 8px;
+      overflow-y: auto;
+    }
+
+    .overlay h2 {
+      width: 100%;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    .overlay p {
+      margin: 8px 0;
+      line-height: 1.8;
+    }
+
+    .extra-guide {
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .extra-guide p {
+      font-size: 16px;
+      line-height: 2;
+    }
+
+    .close-button {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 26px;
+      cursor: pointer;
+    }
+
+    #loader {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      flex-direction: column;
+      gap: 16px;
+      border-radius: 8px;
+    }
+
+    .loader-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    #backgroundPanel {
+      justify-content: flex-start;
+      padding-top: 60px;
+    }
+
+    #backgroundPanel h3 {
+      margin-bottom: 10px;
+      font-size: 18px;
+      color: #eee;
+    }
+
+    #backgroundPanel label {
+      color: #eee;
+      margin-left: 10px;
+    }
+
+    #backgroundPanel input[type="color"] {
+      width: 50px;
+      height: 30px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #backgroundPanel button:not(.close-button) {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+
+    #backgroundPanel button:not(.close-button):hover {
+      background: #0056b3;
+    }
+
+    .color-option {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .color-option:hover {
+      transform: scale(1.1);
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin: 15px 0;
+    }
+
+    .checkbox-container input {
+      margin-left: 10px;
+    }
+
+    /* استایل‌های جدید برای پنل اشتراک‌گذاری */
+    #sharePanel {
+      justify-content: flex-start;
+      padding-top: 60px;
+    }
+
+    #sharePanel h3 {
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #eee;
+    }
+
+    .share-option {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+      width: 100%;
+      text-align: right;
+      font-family: sans-serif;
+    }
+
+    .share-option:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .share-option svg {
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    #shareUrl, #shareIframe, #shareEmbed {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      width: 100%;
+      margin-top: 10px;
+      direction: ltr;
+      text-align: left;
+      font-family: monospace;
+      font-size: 14px;
+      overflow-x: auto;
+    }
+
+    .copy-message {
+      color: #4CAF50;
+      font-size: 14px;
+      margin-top: 5px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .copy-message.show {
+      opacity: 1;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        width: 95%;
+        aspect-ratio: 16 / 9;
+      }
+
+      .overlay {
+        font-size: 16px;
+        padding: 20px;
+      }
+
+      .extra-guide p {
+        font-size: 15px;
+      }
+      
+      .control-buttons {
+        bottom: 10px;
+      }
+      
+      .icon-button {
+        width: 42px;
+        height: 42px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" id="model-container">
+    <div id="loader">
+      <div class="loader-spinner"></div>
+      <p>در حال بارگذاری مدل...</p>
+    </div>
+
+    <model-viewer 
+      id="viewer"
+      alt="مدل سه‌بعدی"
+      auto-rotate 
+      camera-controls
+      shadow-intensity="1"
+      exposure="1"
+      autoplay
+      ar
+      ar-modes="webxr scene-viewer quick-look"
+      vr
+      xr-environment
+      ar-scale="auto"
+      interaction-prompt="none"
+    >
+      <button slot="ar-button" style="background-color: #fff; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="#007bff">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z"/>
+        </svg>
+        نمایش در واقعیت افزوده
+      </button>
+    </model-viewer>
+
+    <input type="range" id="progress-slider" min="0" max="100" value="0" class="animation-controls" />
+
+    <div class="control-buttons" id="controls">
+      <button class="icon-button animation-controls" id="animationToggle" title="توقف انیمیشن">
+        <svg id="playIcon" viewBox="0 0 24 24" style="display: none;"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="pauseIcon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+
+      <button class="icon-button" id="rotateToggle" title="توقف چرخش خودکار">
+        <svg id="rotateOnIcon" viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/></svg>
+        <svg id="rotateOffIcon" viewBox="0 0 24 24" style="display: none;"><path d="M12 7.77L18.39 18H5.61L12 7.77M12 4L2 20h20L12 4z"/></svg>
+      </button>
+
+      <button class="icon-button" id="vrButton" title="واقعیت مجازی">
+        <svg viewBox="0 0 24 24"><path d="M21 4H3c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h5l2.5-3h3L16 18h5c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM3 16V6h18v10h-4.25l-2.25-3h-5L7.25 16H3z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="toggleFullscreen()" title="تمام‌صفحه">
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H7v5zm10 4h2v5h-5v-2h3v-3zm0-4h3V7h-3V5h5v5z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="openBackgroundPanel()" title="تغییر پس‌زمینه">
+        <svg viewBox="0 0 24 24"><path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.49 10 10-4.49 10-10 10zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="openSharePanel()" title="اشتراک‌گذاری مدل">
+        <svg viewBox="0 0 24 24"><path d="M18 16c-.8 0-1.5.4-2 1l-8-4.7c0-.1.1-.2.1-.3s0-.2-.1-.3L16 7c.5.6 1.2 1 2 1 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .1 0 .2.1.3L8 9.7C7.5 9.1 6.8 9 6 9c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.4 2-1l8 4.7c0 .1-.1.2-.1.3 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="toggleHelp()" title="راهنما">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm1.07-7.75-.9.92C12.45 13.9 12 14.5 12 16h-2v-.5c0-1 .45-1.8 1.17-2.5l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+      </button>
+    </div>
+
+    <div id="helpOverlay" class="overlay">
+      <button class="close-button" onclick="toggleHelp()">×</button>
+      <h2>راهنمای استفاده</h2>
+      <p>🔄 <strong>چرخش مدل:</strong> کلیک چپ و کشیدن، یا کشیدن با یک انگشت روی موبایل</p>
+      <p>🔍 <strong>بزرگنمایی:</strong>  اسکرول ماوس یا نیشگون (Pinch)</p>
+      <p>↔️ <strong>جابجایی:</strong> کلیک راست و کشیدن، یا دو انگشت روی موبایل</p>
+      <p>▶️ <strong>کنترل انیمیشن:</strong> استفاده از دکمه شروع/توقف برای کنترل انیمیشن مدل</p>
+      <p>🔄 <strong>چرخش خودکار:</strong> دکمه کنترل چرخش خودکار برای فعال/غیرفعال کردن چرخش مدل</p>
+      <div class="extra-guide">
+        <p>🎮 <strong>راهنمای کامل تعامل با مدل:</strong></p>
+        <p>🔁 <strong>چرخش دوربین:</strong> کشیدن یک انگشت (لمسی) یا کلیک چپ ماوس و حرکت</p>
+        <p>↔️ <strong>جابجایی:</strong> کشیدن دو انگشت یا کلیک راست ماوس و حرکت</p>
+        <p>🔎 <strong>کوچک‌نمایی:</strong> دوبار ضربه روی پس‌زمینه یا دوبار کلیک</p>
+        <p>🔄 <strong>زوم:</strong> چرخ غلتک یا نیشگون</p>
+        <p>⏯️ <strong>انیمیشن:</strong> دکمه کنترل انیمیشن پایین</p>
+        <p>🎨 <strong>تغییر پس‌زمینه:</strong> استفاده از دکمه تغییر پس‌زمینه برای انتخاب رنگ یا تصویر دلخواه</p>
+        <p>🔄 <strong>چرخش خودکار:</strong> دکمه چرخش خودکار برای متوقف کردن یا شروع چرخش مدل</p>
+        <p>💾 <strong>ذخیره تنظیمات:</strong> تنظیمات پس‌زمینه برای هر مدل به صورت جداگانه ذخیره می‌شود</p>
+      </div>
+    </div>
+
+    <div id="backgroundPanel" class="overlay" style="display: none;">
+      <button class="close-button" onclick="closeBackgroundPanel()">×</button>
+      <h2>تنظیمات پس‌زمینه</h2>
+      
+      <div class="checkbox-container">
+        <input type="radio" id="bgModeDefault" name="bgMode" value="default" checked>
+        <label for="bgModeDefault">پس‌زمینه پیش‌فرض (متناسب با مدل)</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="radio" id="bgModeGlobal" name="bgMode" value="global">
+        <label for="bgModeGlobal">پس‌زمینه سراسری (برای همه مدل‌ها)</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="radio" id="bgModeCustom" name="bgMode" value="custom">
+        <label for="bgModeCustom">پس‌زمینه سفارشی (فقط برای این مدل)</label>
+      </div>
+      
+      <div id="globalBgSettings" style="margin: 20px 0; display: none;">
+        <h3>تنظیمات پس‌زمینه سراسری:</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+          <button onclick="setGlobalBackgroundColor('#ffffff')" class="color-option" style="background: #ffffff;" title="سفید"></button>
+          <button onclick="setGlobalBackgroundColor('#f8f8f8')" class="color-option" style="background: #f8f8f8;" title="خاکستری روشن"></button>
+          <button onclick="setGlobalBackgroundColor('#000000')" class="color-option" style="background: #000000;" title="مشکی"></button>
+          <button onclick="setGlobalBackgroundColor('#1e88e5')" class="color-option" style="background: #1e88e5;" title="آبی"></button>
+          <button onclick="setGlobalBackgroundColor('#e53935')" class="color-option" style="background: #e53935;" title="قرمز"></button>
+          <button onclick="setGlobalBackgroundColor('#43a047')" class="color-option" style="background: #43a047;" title="سبز"></button>
+          <button onclick="setGlobalBackgroundColor('#ffeb3b')" class="color-option" style="background: #ffeb3b;" title="زرد"></button>
+          <button onclick="setGlobalBackgroundColor('#7b1fa2')" class="color-option" style="background: #7b1fa2;" title="بنفش"></button>
+        </div>
+        <div style="margin-top: 15px;">
+          <label for="globalCustomColor">رنگ سفارشی:</label>
+          <input type="color" id="globalCustomColor" onchange="setGlobalCustomBackgroundColor(this.value)" style="margin-right: 10px;">
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <h3>تصویر پس‌زمینه سراسری:</h3>
+          <input type="file" id="globalBgImageUpload" accept="image/*" style="display: none;" onchange="handleGlobalBackgroundImageUpload(this.files)">
+          <button onclick="document.getElementById('globalBgImageUpload').click()" style="background: #b0b0b0; border: 1px dashed #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+            انتخاب تصویر سراسری
+          </button>
+          <button onclick="removeGlobalBackgroundImage()" style="background: #b0b0b0; border: 1px solid #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+            حذف تصویر سراسری
+          </button>
+          <p style="font-size: 14px; color: #ccc; margin-top: 10px;">توجه: این تصویر برای همه مدل‌ها اعمال می‌شود.</p>
+        </div>
+      </div>
+      
+      <div id="customBgSettings" style="margin: 20px 0; display: none;">
+        <h3>تنظیمات پس‌زمینه سفارشی:</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+          <button onclick="setCustomBackgroundColor('#ffffff')" class="color-option" style="background: #ffffff;" title="سفید"></button>
+          <button onclick="setCustomBackgroundColor('#f8f8f8')" class="color-option" style="background: #f8f8f8;" title="خاکستری روشن"></button>
+          <button onclick="setCustomBackgroundColor('#000000')" class="color-option" style="background: #000000;" title="مشکی"></button>
+          <button onclick="setCustomBackgroundColor('#1e88e5')" class="color-option" style="background: #1e88e5;" title="آبی"></button>
+          <button onclick="setCustomBackgroundColor('#e53935')" class="color-option" style="background: #e53935;" title="قرمز"></button>
+          <button onclick="setCustomBackgroundColor('#43a047')" class="color-option" style="background: #43a047;" title="سبز"></button>
+          <button onclick="setCustomBackgroundColor('#ffeb3b')" class="color-option" style="background: #ffeb3b;" title="زرد"></button>
+          <button onclick="setCustomBackgroundColor('#7b1fa2')" class="color-option" style="background: #7b1fa2;" title="بنفش"></button>
+        </div>
+        <div style="margin-top: 15px;">
+          <label for="customColor">رنگ سفارشی:</label>
+          <input type="color" id="customColor" onchange="setCustomBackgroundColor(this.value)" style="margin-right: 10px;">
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <h3>تصویر پس‌زمینه سفارشی:</h3>
+          <input type="file" id="bgImageUpload" accept="image/*" style="display: none;" onchange="handleBackgroundImageUpload(this.files)">
+          <button onclick="document.getElementById('bgImageUpload').click()" style="background: #b0b0b0; border: 1px dashed #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+            انتخاب تصویر سفارشی
+          </button>
+          <button onclick="removeCustomBackgroundImage()" style="background: #b0b0b0; border: 1px solid #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+            حذف تصویر سفارشی
+          </button>
+          <p style="font-size: 14px; color: #ccc; margin-top: 10px;">توجه: این تصویر فقط برای این مدل اعمال می‌شود.</p>
+        </div>
+      </div>
+
+      <button onclick="saveBackgroundSettings()" style="background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-top: 20px;">
+        ذخیره تنظیمات
+      </button>
+    </div>
+
+    <!-- پنل اشتراک‌گذاری جدید -->
+    <div id="sharePanel" class="overlay" style="display: none;">
+      <button class="close-button" onclick="closeSharePanel()">×</button>
+      <h2>اشتراک‌گذاری مدل</h2>
+      
+      <div class="share-option" onclick="copyToClipboard('shareUrl')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+        کپی لینک مستقیم
+      </div>
+      <textarea id="shareUrl" readonly rows="2"></textarea>
+      
+      <div class="share-option" onclick="copyToClipboard('shareIframe')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 12h2v5H7zm8-5h2v10h-2zm-4 7h2v3h-2zm0-4h2v2h-2z"/></svg>
+        کپی کد iframe
+      </div>
+      <textarea id="shareIframe" readonly rows="3"></textarea>
+      
+      <div class="share-option" onclick="copyToClipboard('shareEmbed')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M8.5 15H10V9H7v1.5h1.5zM13.5 12.75L15.25 15H18l-2.25-3L18 9h-2.75l-1.75 2.25V9H11v6h1.5z"/></svg>
+        کپی کد embed
+      </div>
+      <textarea id="shareEmbed" readonly rows="3"></textarea>
+      
+      <div id="copyMessage" class="copy-message">متن با موفقیت کپی شد!</div>
+    </div>
+  </div>
+
+  <script>
+    // دریافت پارامترهای URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const modelFile = urlParams.get('model') || 'default.glb';
+    const defaultBgColor = urlParams.get('bg') || '#ffffff';
+
+    // تعیین فایل USDZ بر اساس نام فایل GLB
+    function getUsdzPath(glbPath) {
+      return glbPath.replace('.glb', '.usdz');
+    }
+
+    // بارگذاری مدل و اعمال تنظیمات
+    document.addEventListener('DOMContentLoaded', () => {
+      const viewer = document.getElementById('viewer');
+      const usdzFile = getUsdzPath(modelFile);
+      
+      // تنظیم مدل‌ها
+      viewer.src = modelFile;
+      viewer.setAttribute('ios-src', usdzFile);
+      
+      // اعمال رنگ پس‌زمینه پیش‌فرض
+      document.documentElement.style.setProperty('--model-bg-color', defaultBgColor);
+      viewer.style.backgroundColor = defaultBgColor;
+      
+      // ذخیره تنظیمات اولیه
+      currentModelSettings = {
+        color: defaultBgColor,
+        image: ''
+      };
+      
+      // بارگذاری تنظیمات پس‌زمینه
+      loadBackgroundSettings();
+    });
+
+    // بقیه کدهای جاوااسکریپت
+    const viewer = document.getElementById('viewer');
+    const animationToggle = document.getElementById('animationToggle');
+    const rotateToggle = document.getElementById('rotateToggle');
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const rotateOnIcon = document.getElementById('rotateOnIcon');
+    const rotateOffIcon = document.getElementById('rotateOffIcon');
+    const slider = document.getElementById('progress-slider');
+    const loader = document.getElementById('loader');
+    const controls = document.getElementById('controls');
+    const container = document.getElementById('model-container');
+    const animationControls = document.querySelectorAll('.animation-controls');
+    const vrButton = document.getElementById('vrButton');
+    
+    let isPlaying = true;
+    let isAutoRotating = true;
+    let wasPlayingBeforeDrag = false;
+    let isDragging = false;
+    let rafId = null;
+    let hideTimeout;
+    let currentModelSettings = {
+      color: '#ffffff',
+      image: ''
+    };
+    let globalBackgroundSettings = {
+      color: '',
+      image: ''
+    };
+    let currentModelId = '';
+    let hasAnimations = false;
+    let currentBackgroundMode = 'default'; // 'default', 'global', 'custom'
+    let isInVRMode = false;
+
+    // تنظیم حالت اولیه آیکون‌ها
+    pauseIcon.style.display = 'block';
+    playIcon.style.display = 'none';
+    rotateOnIcon.style.display = 'block';
+    rotateOffIcon.style.display = 'none';
+
+    // تولید شناسه منحصر به فرد برای مدل بر اساس آدرس فایل
+    function getModelId() {
+      const modelSrc = viewer.getAttribute('src');
+      return modelSrc ? modelSrc : 'default-model';
+    }
+
+    // بارگذاری تنظیمات پس‌زمینه از localStorage
+    function loadBackgroundSettings() {
+      currentModelId = getModelId();
+      
+      // بارگذاری تنظیمات سراسری
+      const savedGlobalSettings = localStorage.getItem('modelViewerGlobalBackground');
+      if (savedGlobalSettings) {
+        globalBackgroundSettings = JSON.parse(savedGlobalSettings);
+      }
+      
+      // بارگذاری تنظیمات سفارشی برای مدل فعلی
+      const savedSettings = localStorage.getItem(`modelViewerBackground_${currentModelId}`);
+      if (savedSettings) {
+        currentModelSettings = JSON.parse(savedSettings);
+      }
+      
+      // بارگذاری حالت پس‌زمینه
+      const savedBgMode = localStorage.getItem('modelViewerBackgroundMode');
+      currentBackgroundMode = savedBgMode || 'default';
+      
+      // اعمال تنظیمات پس‌زمینه بر اساس حالت انتخاب شده
+      applyBackgroundSettings();
+    }
+
+    // اعمال تنظیمات پس‌زمینه بر اساس حالت انتخاب شده
+    function applyBackgroundSettings() {
+      if (currentBackgroundMode === 'global') {
+        // حالت پس‌زمینه سراسری
+        if (globalBackgroundSettings.image) {
+          viewer.style.backgroundImage = `url(${globalBackgroundSettings.image})`;
+          viewer.style.backgroundSize = 'cover';
+          viewer.style.backgroundColor = '';
+        } else if (globalBackgroundSettings.color) {
+          viewer.style.backgroundColor = globalBackgroundSettings.color;
+          viewer.style.backgroundImage = 'none';
+        } else {
+          // اگر تنظیمات سراسری وجود ندارد، از پیش‌فرض استفاده کنید
+          viewer.style.backgroundColor = defaultBgColor;
+          viewer.style.backgroundImage = 'none';
+        }
+      } else if (currentBackgroundMode === 'custom') {
+        // حالت پس‌زمینه سفارشی
+        if (currentModelSettings.image) {
+          viewer.style.backgroundImage = `url(${currentModelSettings.image})`;
+          viewer.style.backgroundSize = 'cover';
+          viewer.style.backgroundColor = '';
+        } else {
+          viewer.style.backgroundColor = currentModelSettings.color || defaultBgColor;
+          viewer.style.backgroundImage = 'none';
+        }
+      } else {
+        // حالت پیش‌فرض (استفاده از تنظیمات URL)
+        viewer.style.backgroundColor = defaultBgColor;
+        viewer.style.backgroundImage = 'none';
+      }
+    }
+
+    // ذخیره تنظیمات پس‌زمینه در localStorage
+    function saveBackgroundSettings() {
+      currentModelId = getModelId();
+      
+      // ذخیره حالت پس‌زمینه
+      localStorage.setItem('modelViewerBackgroundMode', currentBackgroundMode);
+      
+      // ذخیره تنظیمات سراسری
+      localStorage.setItem('modelViewerGlobalBackground', JSON.stringify(globalBackgroundSettings));
+      
+      // ذخیره تنظیمات سفارشی برای مدل فعلی
+      localStorage.setItem(`modelViewerBackground_${currentModelId}`, JSON.stringify(currentModelSettings));
+      
+      // اعمال تنظیمات جدید
+      applyBackgroundSettings();
+      
+      closeBackgroundPanel();
+    }
+
+    // بازنشانی به تنظیمات پیش‌فرض
+    function resetToDefaultBackground() {
+      viewer.style.backgroundColor = defaultBgColor;
+      viewer.style.backgroundImage = '';
+      currentModelSettings = {
+        color: defaultBgColor,
+        image: ''
+      };
+      currentBackgroundMode = 'default';
+    }
+
+    // بررسی وجود انیمیشن در مدل
+    function checkForAnimations() {
+      return new Promise((resolve) => {
+        if (viewer.availableAnimations && viewer.availableAnimations.length > 0) {
+          resolve(true);
+        } else {
+          setTimeout(() => {
+            const hasDuration = viewer.duration > 0;
+            resolve(hasDuration);
+          }, 500);
+        }
+      });
+    }
+
+    // تنظیم نمایش کنترل‌های انیمیشن بر اساس وجود انیمیشن
+    function setupAnimationControls(hasAnim) {
+      hasAnimations = hasAnim;
+      
+      if (hasAnimations) {
+        animationControls.forEach(control => {
+          control.classList.remove('hidden');
+        });
+        
+        if (isPlaying) {
+          startAnimationLoop();
+        }
+      } else {
+        animationControls.forEach(control => {
+          control.classList.add('hidden');
+        });
+        
+        stopAnimationLoop();
+      }
+    }
+
+    // بهبود دکمه AR
+    viewer.addEventListener('load', async () => {
+      loader.style.display = 'none';
+      
+      const hasAnim = await checkForAnimations();
+      setupAnimationControls(hasAnim);
+    });
+
+    // تابع پیشرفته برای ورود به حالت VR
+    async function enterVR() {
+      try {
+        if (isInVRMode) {
+          // اگر در حال حاضر در حالت VR هستیم، خارج شویم
+          await viewer.exitXR();
+          isInVRMode = false;
+          viewer.removeAttribute('data-vr-active');
+          return;
+        }
+
+        // بررسی پشتیبانی از WebXR
+        if ('xr' in navigator) {
+          const isSessionSupported = await navigator.xr.isSessionSupported('immersive-vr');
+          
+          if (isSessionSupported) {
+            // حالت پیشرفته WebXR برای دستگاه‌های دارای عینک VR
+            const session = await navigator.xr.requestSession('immersive-vr');
+            await viewer.enterXR('immersive-vr', session);
+          } else {
+            // حالت ساده VR برای دستگاه‌های موبایل (استریوسکوپیک)
+            viewer.setAttribute('data-vr-active', 'true');
+            if (!document.fullscreenElement) {
+              await document.documentElement.requestFullscreen();
+            }
+            isInVRMode = true;
+          }
+        } else {
+          // حالت fallback برای مرورگرهای قدیمی
+          viewer.setAttribute('data-vr-active', 'true');
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          }
+          isInVRMode = true;
+        }
+      } catch (error) {
+        console.error("خطا در ورود به VR:", error);
+        alert("دستگاه یا مرورگر شما از حالت واقعیت مجازی (VR) پشتیبانی نمی‌کند.");
+        isInVRMode = false;
+        viewer.removeAttribute('data-vr-active');
+      }
+    }
+
+    // رویداد تغییر وضعیت VR
+    viewer.addEventListener('vr-mode-change', (event) => {
+      isInVRMode = event.detail.activated;
+      if (isInVRMode) {
+        viewer.setAttribute('data-vr-active', 'true');
+      } else {
+        viewer.removeAttribute('data-vr-active');
+      }
+    });
+
+    // رویداد وضعیت AR
+    viewer.addEventListener('ar-status', (event) => {
+      if (event.detail.status === 'session-started') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.log("خطا در ورود به حالت تمام‌صفحه:", err);
+          });
+        }
+      }
+    });
+
+    // کنترل انیمیشن
+    animationToggle.addEventListener('click', () => {
+      if (!hasAnimations) return;
+      
+      if (isPlaying) {
+        viewer.pause();
+        pauseIcon.style.display = 'none';
+        playIcon.style.display = 'block';
+        animationToggle.setAttribute('title', 'شروع انیمیشن');
+        stopAnimationLoop();
+      } else {
+        viewer.play();
+        pauseIcon.style.display = 'block';
+        playIcon.style.display = 'none';
+        animationToggle.setAttribute('title', 'توقف انیمیشن');
+        startAnimationLoop();
+      }
+      isPlaying = !isPlaying;
+      showControls();
+    });
+
+    // کنترل چرخش خودکار
+    rotateToggle.addEventListener('click', () => {
+      if (isAutoRotating) {
+        viewer.autoRotate = false;
+        rotateOnIcon.style.display = 'none';
+        rotateOffIcon.style.display = 'block';
+        rotateToggle.setAttribute('title', 'شروع چرخش خودکار');
+      } else {
+        viewer.autoRotate = true;
+        rotateOnIcon.style.display = 'block';
+        rotateOffIcon.style.display = 'none';
+        rotateToggle.setAttribute('title', 'توقف چرخش خودکار');
+      }
+      isAutoRotating = !isAutoRotating;
+      showControls();
+    });
+
+    function updateSlider() {
+      if (!hasAnimations) return;
+      
+      const duration = viewer.duration;
+      const currentTime = viewer.currentTime;
+      if (duration && !isDragging) {
+        slider.value = (currentTime / duration) * 100;
+      }
+      rafId = requestAnimationFrame(updateSlider);
+    }
+
+    function startAnimationLoop() {
+      if (!hasAnimations) return;
+      
+      cancelAnimationFrame(rafId);
+      updateSlider();
+    }
+
+    function stopAnimationLoop() {
+      cancelAnimationFrame(rafId);
+    }
+
+    slider.addEventListener('pointerdown', () => {
+      if (!hasAnimations) return;
+      
+      isDragging = true;
+      wasPlayingBeforeDrag = isPlaying;
+      if (isPlaying) {
+        viewer.pause();
+        stopAnimationLoop();
+      }
+      showControls();
+    });
+
+    slider.addEventListener('input', () => {
+      if (!hasAnimations) return;
+      
+      const duration = viewer.duration;
+      if (duration) {
+        viewer.currentTime = (slider.value / 100) * duration;
+      }
+    });
+
+    slider.addEventListener('pointerup', () => {
+      if (!hasAnimations) return;
+      
+      if (wasPlayingBeforeDrag) {
+        viewer.play();
+        startAnimationLoop();
+      }
+      isDragging = false;
+      showControls();
+    });
+
+    function toggleFullscreen() {
+      const container = document.querySelector('.container');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+          alert(`تمام‌صفحه نشد: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+      showControls();
+    }
+
+    function toggleHelp() {
+      const overlay = document.getElementById('helpOverlay');
+      overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+      showControls();
+    }
+
+    function showControls() {
+      // در حالت VR کنترل‌ها را نشان ندهیم
+      if (isInVRMode) return;
+      
+      controls.classList.remove('hidden');
+      if (hasAnimations) {
+        slider.classList.remove('hidden');
+      }
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        controls.classList.add('hidden');
+        if (hasAnimations) {
+          slider.classList.add('hidden');
+        }
+      }, 3000);
+    }
+
+    function openBackgroundPanel() {
+      const panel = document.getElementById('backgroundPanel');
+      panel.style.display = 'flex';
+      
+      // تنظیم حالت رادیو باتن‌ها بر اساس حالت فعلی
+      document.getElementById(`bgMode${currentBackgroundMode.charAt(0).toUpperCase() + currentBackgroundMode.slice(1)}`).checked = true;
+      
+      // نمایش بخش‌های مربوطه
+      document.getElementById('globalBgSettings').style.display = currentBackgroundMode === 'global' ? 'block' : 'none';
+      document.getElementById('customBgSettings').style.display = currentBackgroundMode === 'custom' ? 'block' : 'none';
+      
+      showControls();
+    }
+
+    function closeBackgroundPanel() {
+      document.getElementById('backgroundPanel').style.display = 'none';
+      showControls();
+    }
+
+    // تغییر حالت پس‌زمینه
+    function changeBackgroundMode(mode) {
+      currentBackgroundMode = mode;
+      
+      // نمایش بخش‌های مربوطه
+      document.getElementById('globalBgSettings').style.display = mode === 'global' ? 'block' : 'none';
+      document.getElementById('customBgSettings').style.display = mode === 'custom' ? 'block' : 'none';
+      
+      // اعمال تنظیمات جدید
+      applyBackgroundSettings();
+    }
+
+    // تنظیم رنگ پس‌زمینه سراسری
+    function setGlobalBackgroundColor(color) {
+      globalBackgroundSettings.color = color;
+      globalBackgroundSettings.image = '';
+      if (currentBackgroundMode === 'global') {
+        viewer.style.backgroundColor = color;
+        viewer.style.backgroundImage = 'none';
+      }
+    }
+
+    function setGlobalCustomBackgroundColor(color) {
+      setGlobalBackgroundColor(color);
+    }
+
+    // تنظیم تصویر پس‌زمینه سراسری
+    function handleGlobalBackgroundImageUpload(files) {
+      if (files && files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          globalBackgroundSettings.image = e.target.result;
+          globalBackgroundSettings.color = '';
+          if (currentBackgroundMode === 'global') {
+            viewer.style.backgroundImage = `url(${e.target.result})`;
+            viewer.style.backgroundSize = 'cover';
+            viewer.style.backgroundColor = '';
+          }
+        };
+        reader.readAsDataURL(files[0]);
+      }
+    }
+
+    function removeGlobalBackgroundImage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const defaultBg = urlParams.get('bg') || '#ffffff';
+      
+      globalBackgroundSettings.image = '';
+      globalBackgroundSettings.color = defaultBg;
+      if (currentBackgroundMode === 'global') {
+        viewer.style.backgroundImage = '';
+        viewer.style.backgroundColor = defaultBg;
+      }
+    }
+
+    // تنظیم رنگ پس‌زمینه سفارشی
+    function setCustomBackgroundColor(color) {
+      currentModelSettings.color = color;
+      currentModelSettings.image = '';
+      if (currentBackgroundMode === 'custom') {
+        viewer.style.backgroundColor = color;
+        viewer.style.backgroundImage = 'none';
+      }
+    }
+
+    // تنظیم تصویر پس‌زمینه سفارشی
+    function handleBackgroundImageUpload(files) {
+      if (files && files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          currentModelSettings.image = e.target.result;
+          currentModelSettings.color = '';
+          if (currentBackgroundMode === 'custom') {
+            viewer.style.backgroundImage = `url(${e.target.result})`;
+            viewer.style.backgroundSize = 'cover';
+            viewer.style.backgroundColor = '';
+          }
+        };
+        reader.readAsDataURL(files[0]);
+      }
+    }
+
+    function removeCustomBackgroundImage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const defaultBg = urlParams.get('bg') || '#ffffff';
+      
+      currentModelSettings.image = '';
+      currentModelSettings.color = defaultBg;
+      if (currentBackgroundMode === 'custom') {
+        viewer.style.backgroundImage = '';
+        viewer.style.backgroundColor = defaultBg;
+      }
+    }
+
+    // پنل اشتراک‌گذاری
+    function openSharePanel() {
+      const panel = document.getElementById('sharePanel');
+      panel.style.display = 'flex';
+      
+      // تولید لینک‌ها
+      const currentUrl = window.location.href;
+
+      // اگر فقط iframe نیاز است:
+      const iframeCode = `
+        <iframe 
+          src="${currentUrl}" 
+          width="100%" 
+          height="500px" 
+          style="border: none;"
+          allowfullscreen
+          allow="fullscreen"
+        ></iframe>
+      `;
+
+      // اگر قرار است iframe داخل div باشد:
+      const embedCode = `
+        <div style="width: 100%; height: 500px;">
+          <iframe 
+            src="${currentUrl}" 
+            style="width: 100%; height: 100%; border: none;"
+            allowfullscreen
+            allow="fullscreen"
+          ></iframe>
+        </div>
+      `;
+
+      
+      document.getElementById('shareUrl').value = currentUrl;
+      document.getElementById('shareIframe').value = iframeCode;
+      document.getElementById('shareEmbed').value = embedCode;
+      
+      showControls();
+    }
+
+    function closeSharePanel() {
+      document.getElementById('sharePanel').style.display = 'none';
+      showControls();
+    }
+
+    function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      element.select();
+      document.execCommand('copy');
+      
+      const message = document.getElementById('copyMessage');
+      message.classList.add('show');
+      setTimeout(() => {
+        message.classList.remove('show');
+      }, 2000);
+    }
+
+    // رویدادهای تغییر حالت پس‌زمینه
+    document.getElementById('bgModeDefault').addEventListener('change', () => {
+      if (document.getElementById('bgModeDefault').checked) {
+        changeBackgroundMode('default');
+      }
+    });
+
+    document.getElementById('bgModeGlobal').addEventListener('change', () => {
+      if (document.getElementById('bgModeGlobal').checked) {
+        changeBackgroundMode('global');
+      }
+    });
+
+    document.getElementById('bgModeCustom').addEventListener('change', () => {
+      if (document.getElementById('bgModeCustom').checked) {
+        changeBackgroundMode('custom');
+      }
+    });
+
+    // رویداد کلیک دکمه VR
+    vrButton.addEventListener('click', enterVR);
+
+    // رویداد تغییر وضعیت تمام‌صفحه
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && isInVRMode) {
+        // اگر از حالت تمام‌صفحه خارج شدیم و در حالت VR بودیم، VR را غیرفعال کنیم
+        enterVR();
+      }
+    });
+
+    window.addEventListener('load', () => {
+      loadBackgroundSettings();
+      
+      hideTimeout = setTimeout(() => {
+        controls.classList.add('hidden');
+        if (hasAnimations) {
+          slider.classList.add('hidden');
+        }
+      }, 3000);
+    });
+
+    container.addEventListener('mousemove', showControls);
+    container.addEventListener('touchmove', showControls);
+    viewer.addEventListener('click', showControls);
+  </script>
+</body>
+</html>
