@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>مدل سه‌بعدی روی Merge Cube</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="نمایش مدل سه‌بعدی روی Merge Cube با استفاده از MindAR و A-Frame">
+
+    <!-- A-Frame و MindAR -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe@1.2.0/dist/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
+
+    <style>
+      body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+      #startButton {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        padding: 10px 15px;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10;
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 20px;
+        border-radius: 10px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- دکمه شروع AR -->
+    <button id="startButton">شروع نمایش AR</button>
+    <div id="loading">در حال بارگذاری...</div>
+
+    <!-- صحنه AR -->
+    <a-scene
+      mindar-image="imageTargetSrc: marker.mind; autoStart: false;"
+      color-space="sRGB"
+      embedded
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-assets>
+        <a-asset-item id="model" src="https://mohsenyam.github.io/a/bbb.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-gltf-model 
+          src="#model" 
+          position="0 0 0" 
+          scale="0.5 0.5 0.5" 
+          rotation="0 0 0"
+          shadow="receive: true"
+        ></a-gltf-model>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      const startButton = document.getElementById('startButton');
+      const loading = document.getElementById('loading');
+
+      // نمایش وضعیت بارگذاری
+      document.querySelector('a-scene').addEventListener('loaded', () => {
+        loading.style.display = 'none';
+      });
+
+      startButton.addEventListener('click', async () => {
+        loading.style.display = 'block';
+        loading.textContent = 'در حال شروع AR...';
+        
+        try {
+          const sceneEl = document.querySelector('a-scene');
+          await sceneEl.components['mindar-image'].start();
+          startButton.style.display = 'none';
+          loading.style.display = 'none';
+        } catch (error) {
+          console.error('خطا در شروع AR:', error);
+          loading.textContent = 'خطا در شروع AR. لطفاً دوربین و اینترنت را بررسی کنید.';
+        }
+      });
+    </script>
+  </body>
+</html>
