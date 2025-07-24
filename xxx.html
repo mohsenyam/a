@@ -90,6 +90,16 @@
       height: 100%;
       fill: white;
     }
+    
+    #debugInfo {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      color: white;
+      background: rgba(0,0,0,0.5);
+      padding: 5px;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
@@ -108,6 +118,8 @@
     </svg>
   </button>
 
+  <div id="debugInfo"></div>
+
   <a-scene
     mindar-image="imageTargetSrc: targets.mind; autoStart: false;"
     vr-mode-ui="enabled: false"
@@ -121,10 +133,10 @@
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
     <!-- والد اصلی مدل -->
-    <a-entity id="model-container" visible="false">
-      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
-      <a-entity light="type: directional; intensity: 1.0" position="0 1 1"></a-entity>
-      <a-entity id="model" position="0 0 0"></a-entity>
+    <a-entity id="model-parent" visible="false">
+      <a-entity light="type: ambient; intensity: 1.0"></a-entity>
+      <a-entity light="type: directional; intensity: 1.2" position="1 1 1"></a-entity>
+      <a-entity id="model" position="0 0 0" scale="0.1 0.1 0.1"></a-entity>
     </a-entity>
 
     <!-- تعریف تمام 6 وجه مکعب -->
@@ -153,16 +165,17 @@
     const loadingContainer = document.getElementById('loadingContainer');
     const loadingText = document.getElementById('loadingText');
     const progressBar = document.getElementById('progress');
+    const debugInfo = document.getElementById('debugInfo');
     const sceneEl = document.querySelector('a-scene');
-    const modelContainer = document.getElementById('model-container');
+    const modelParent = document.getElementById('model-parent');
     const modelEntity = document.getElementById('model');
 
     // دریافت پارامترهای URL
     const urlParams = new URLSearchParams(window.location.search);
     const modelName = urlParams.get('model') || 'cross_section_of_artery_1.glb';
-    const manualScale = urlParams.get('scale');
+    const manualScale = urlParams.get('scale') || 0.1;
 
-    // وضعیت بارگذاری
+    // وضعیت برنامه
     let progress = 0;
     let resourcesLoaded = {
       aframe: false,
@@ -173,22 +186,10 @@
     let modelLoaded = false;
     let isTracking = false;
 
-    // تابع محاسبه مقیاس هوشمند
-    function calculateScale(object3D) {
-      if (manualScale) {
-        const scaleValue = parseFloat(manualScale);
-        if (!isNaN(scaleValue)) {
-          return {x: scaleValue, y: scaleValue, z: scaleValue};
-        }
-      }
-
-      const bbox = new THREE.Box3().setFromObject(object3D);
-      const size = bbox.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const targetHeight = 3 * window.innerHeight / 1000;
-      const scale = targetHeight / maxDim;
-
-      return {x: scale, y: scale, z: scale};
+    // تابع نمایش اطلاعات دیباگ
+    function updateDebugInfo(message) {
+      debugInfo.textContent = message;
+      console.log(message);
     }
 
     // بارگذاری مدل
@@ -198,19 +199,31 @@
         modelPath = `./${modelName}`;
       }
 
-      console.log(`در حال بارگذاری مدل از: ${modelPath}`);
+      updateDebugInfo(`در حال بارگذاری مدل از: ${modelPath}`);
       
-      modelEntity.setAttribute('gltf-model', `url(${modelPath})`);
+      // حذف مدل قبلی اگر وجود دارد
+      modelEntity.removeAttribute('gltf-model');
       
+      // اضافه کردن کامپوننت جدید با کش غیرفعال
+      modelEntity.setAttribute('gltf-model', {
+        src: modelPath,
+        cache: false
+      });
+
       modelEntity.addEventListener('model-loaded', (e) => {
-        const scale = calculateScale(e.detail.model);
-        modelEntity.setAttribute('scale', `${scale.x} ${scale.y} ${scale.z}`);
+        updateDebugInfo('مدل با موفقیت بارگذاری شد');
         
-        // فعال کردن سایه‌ها
+        // تنظیم مقیاس
+        modelEntity.setAttribute('scale', `${manualScale} ${manualScale} ${manualScale}`);
+        
+        // فعال کردن سایه‌ها و به‌روزرسانی مواد
         e.detail.model.traverse((node) => {
           if (node.isMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
+            if (node.material) {
+              node.material.needsUpdate = true;
+            }
           }
         });
 
@@ -220,8 +233,8 @@
       });
       
       modelEntity.addEventListener('model-error', (e) => {
-        console.error('خطا در بارگذاری مدل:', e.detail);
-        loadingText.textContent = 'خطا در بارگذاری مدل. لطفاً از یک سرور محلی استفاده کنید.';
+        updateDebugInfo(`خطا در بارگذاری مدل: ${e.detail.message}`);
+        loadingText.textContent = `خطا در بارگذاری مدل (${modelPath})`;
         resourcesLoaded.model = true;
         updateProgress();
       });
@@ -252,52 +265,63 @@
       }
     }
 
+    // به‌روزرسانی موقعیت مدل
+    function updateModelPosition() {
+      if (!modelLoaded || !isTracking || currentFace === null) return;
+      
+      const targetHelper = document.querySelector(`.target-helper[data-face="${currentFace}"]`);
+      if (targetHelper && targetHelper.parentElement.object3D.visible) {
+        const target = targetHelper.parentElement;
+        
+        // کپی مستقیم ماتریس تبدیل
+        modelParent.object3D.matrixWorld.copy(target.object3D.matrixWorld);
+        modelParent.object3D.matrix.decompose(
+          modelParent.object3D.position,
+          modelParent.object3D.quaternion,
+          modelParent.object3D.scale
+        );
+        
+        modelParent.setAttribute('visible', 'true');
+        modelParent.object3D.updateMatrixWorld();
+      }
+    }
+
     // تنظیم رویدادهای تشخیص وجه‌ها
     function setupTargetEvents() {
       const targetHelpers = document.querySelectorAll('.target-helper');
       
       targetHelpers.forEach((helper) => {
         const parentTarget = helper.parentElement;
+        const face = parseInt(helper.getAttribute('data-face'));
         
         parentTarget.addEventListener('targetFound', () => {
-          const face = parseInt(helper.getAttribute('data-face'));
-          console.log(`تشخیص وجه: ${face}`);
+          updateDebugInfo(`تشخیص وجه: ${face}`);
           
           if (!isTracking) {
-            modelContainer.setAttribute('visible', 'true');
+            modelParent.setAttribute('visible', 'true');
             isTracking = true;
+            updateDebugInfo('شروع ردیابی');
           }
           
           currentFace = face;
+          updateModelPosition();
         });
         
         parentTarget.addEventListener('targetLost', () => {
-          // هیچ کاری انجام نمی‌دهیم تا مدل در آخرین موقعیت باقی بماند
+          if (currentFace === face) {
+            currentFace = null;
+            modelParent.setAttribute('visible', 'false');
+          }
         });
       });
       
-      // به روزرسانی موقعیت مدل در هر فریم
+      // حلقه به‌روزرسانی موقعیت
       sceneEl.addEventListener('renderstart', () => {
-        const mindarSystem = sceneEl.systems['mindar-image-system'];
-        
-        const updateModelPosition = () => {
-          if (currentFace !== null && modelLoaded && isTracking) {
-            const targetHelper = document.querySelector(`.target-helper[data-face="${currentFace}"]`);
-            if (targetHelper) {
-              const parentTarget = targetHelper.parentElement;
-              if (parentTarget.object3D.visible) {
-                // کپی موقعیت و چرخش از وجه فعلی به مدل
-                modelContainer.object3D.position.copy(parentTarget.object3D.position);
-                modelContainer.object3D.quaternion.copy(parentTarget.object3D.quaternion);
-              }
-            }
-          }
-          requestAnimationFrame(updateModelPosition);
-        };
-        
-        if (mindarSystem.started) {
+        const updateLoop = () => {
           updateModelPosition();
-        }
+          requestAnimationFrame(updateLoop);
+        };
+        updateLoop();
       });
     }
 
@@ -316,7 +340,7 @@
         
         sceneEl.querySelector('a-camera').setAttribute('look-controls', 'enabled: true');
       } catch (err) {
-        console.error('خطا در شروع AR:', err);
+        updateDebugInfo(`خطا در شروع AR: ${err.message}`);
         loadingText.textContent = 'خطا در شروع AR. لطفاً دوباره امتحان کنید.';
         startButton.style.display = 'block';
       }
