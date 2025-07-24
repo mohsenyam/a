@@ -124,8 +124,8 @@
 
     <!-- والد اصلی مدل -->
     <a-entity id="model-parent" visible="false">
-      <a-entity light="type: ambient; intensity: 0.6; color: #FFFFFF"></a-entity>
-      <a-entity light="type: directional; intensity: 0.8; color: #FFFFFF" position="0 1 1"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.8; color: #FFFFFF"></a-entity>
+      <a-entity light="type: directional; intensity: 1.2; color: #FFFFFF" position="0 1 1"></a-entity>
       <a-entity id="model" position="0 0 0"></a-entity>
     </a-entity>
 
@@ -187,7 +187,7 @@
       const bbox = new THREE.Box3().setFromObject(object3D);
       const size = bbox.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
-      const targetSize = 0.15; // اندازه مناسب برای نمایش
+      const targetSize = 0.15;
       const scale = targetSize / maxDim;
       
       return {x: scale, y: scale, z: scale};
@@ -197,38 +197,48 @@
     function loadModel() {
       let modelPath = modelName;
       
-      // اصلاح مسیر برای سرور محلی
       if (!modelName.startsWith('http') && !modelName.startsWith('/') && !modelName.startsWith('./')) {
         modelPath = `./${modelName}`;
       }
 
       console.log(`در حال بارگذاری مدل از: ${modelPath}`);
       
-      modelEntity.setAttribute('gltf-model', `url(${modelPath})`);
+      modelEntity.removeAttribute('gltf-model');
       
+      modelEntity.setAttribute('gltf-model', {
+        src: modelPath,
+        cache: false
+      });
+
       modelEntity.addEventListener('model-loaded', (e) => {
-        console.log('مدل با موفقیت بارگذاری شد');
+        console.log('مدل با موفقیت بارگذاری شد', e.detail.model);
         
         const model = e.detail.model;
         const scale = calculateScale(model);
-        modelEntity.setAttribute('scale', `${scale.x} ${scale.y} ${scale.z}`);
         
-        // تنظیمات اضافی برای مدل
+        modelEntity.setAttribute('scale', scale);
+        modelEntity.setAttribute('position', '0 0 0');
+        
         model.traverse((node) => {
           if (node.isMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
+            node.material.needsUpdate = true;
           }
         });
-        
+
+        if (model.material) {
+          model.material.needsUpdate = true;
+        }
+
         resourcesLoaded.model = true;
         modelLoaded = true;
         updateProgress();
       });
-      
+
       modelEntity.addEventListener('model-error', (e) => {
-        console.error('خطا در بارگذاری مدل:', e.detail);
-        showError(`خطا در بارگذاری مدل: ${modelPath}`);
+        console.error('خطای بارگذاری مدل:', e.detail);
+        showError(`خطا در بارگذاری مدل (${modelPath})`);
         resourcesLoaded.model = true;
         updateProgress();
       });
@@ -264,22 +274,24 @@
       }
     }
 
-    // به‌روزرسانی موقعیت مدل
-    function updateModelPosition() {
-      if (!modelLoaded || !isTracking) return;
+    // به‌روزرسانی فوری موقعیت مدل
+    function updateModelPositionImmediately() {
+      if (!modelLoaded || !isTracking || currentFace === null) return;
       
-      if (currentFace !== null) {
-        const targetHelper = document.querySelector(`.target-helper[data-face="${currentFace}"]`);
-        if (targetHelper && targetHelper.parentElement.object3D.visible) {
-          const target = targetHelper.parentElement;
-          
-          // کپی موقعیت و چرخش
-          modelParent.object3D.position.copy(target.object3D.position);
-          modelParent.object3D.quaternion.copy(target.object3D.quaternion);
-          modelParent.setAttribute('visible', 'true');
-        }
-      } else {
-        modelParent.setAttribute('visible', 'false');
+      const targetHelper = document.querySelector(`.target-helper[data-face="${currentFace}"]`);
+      if (targetHelper && targetHelper.parentElement.object3D.visible) {
+        const target = targetHelper.parentElement;
+        
+        modelParent.object3D.matrixWorld.copy(target.object3D.matrixWorld);
+        modelParent.object3D.matrix.decompose(
+          modelParent.object3D.position,
+          modelParent.object3D.quaternion,
+          modelParent.object3D.scale
+        );
+        
+        modelParent.setAttribute('visible', 'true');
+        modelParent.object3D.visible = true;
+        modelParent.object3D.updateMatrixWorld();
       }
     }
 
@@ -301,19 +313,22 @@
           }
           
           currentFace = face;
-          updateModelPosition();
+          updateModelPositionImmediately();
         });
         
         parentTarget.addEventListener('targetLost', () => {
           if (currentFace === face) {
             currentFace = null;
-            updateModelPosition();
+            modelParent.setAttribute('visible', 'false');
           }
         });
       });
       
-      // شروع به‌روزرسانی موقعیت
-      positionUpdateInterval = setInterval(updateModelPosition, 100);
+      positionUpdateInterval = setInterval(() => {
+        if (currentFace !== null) {
+          updateModelPositionImmediately();
+        }
+      }, 50);
     }
 
     // شروع AR
@@ -329,7 +344,6 @@
         setupTargetEvents();
         loadingContainer.style.display = 'none';
         
-        // فعال کردن کنترل‌های دوربین
         sceneEl.querySelector('a-camera').setAttribute('look-controls', 'enabled: true');
       } catch (err) {
         console.error('خطا در شروع AR:', err);
