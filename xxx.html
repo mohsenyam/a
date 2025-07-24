@@ -1,22 +1,380 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>مدل سه بعدی</title>
+  <meta charset="utf-8">
+  <title>نمایش مدل سه بعدی روی مکعب Merge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image-aframe.prod.js"></script>
+
   <style>
-    html, body {
+    body, html {
       margin: 0;
       padding: 0;
-      height: 100%;
+      overflow: hidden;
+      font-family: Tahoma, sans-serif;
     }
-    iframe {
+    
+    #loadingContainer {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      color: white;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #4CAF50;
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    #progressBar {
+      width: 80%;
+      max-width: 300px;
+      height: 10px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 5px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    
+    #progress {
+      height: 100%;
+      width: 0%;
+      background: #4CAF50;
+      transition: width 0.3s ease;
+    }
+    
+    #startButton {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 50px;
+      height: 50px;
+      background: #4CAF50;
+      color: white;
       border: none;
+      border-radius: 50%;
+      z-index: 100;
+      cursor: pointer;
+      display: none;
+      font-size: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+    }
+    
+    #startButton:hover {
+      background: #45a049;
+      transform: scale(1.1);
+    }
+    
+    #errorMessage {
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
+      text-align: center;
+      color: #ff4444;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      display: none;
+      z-index: 1000;
     }
   </style>
 </head>
 <body>
-  <iframe src="x.html?model=bbb.glb&bg=%23f8f8f8"></iframe>
+  <div id="loadingContainer">
+    <div class="spinner"></div>
+    <div id="loadingText">در حال آماده‌سازی محیط واقعیت افزوده...</div>
+    <div id="progressBar">
+      <div id="progress"></div>
+    </div>
+  </div>
+
+  <button id="startButton">شروع</button>
+  <div id="errorMessage"></div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: targets.mind; autoStart: false;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    renderer="colorManagement: true; logarithmicDepthBuffer: true;"
+  >
+    <a-assets>
+      <!-- مدل به صورت پویا بارگذاری می‌شود -->
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false" cursor="rayOrigin: mouse"></a-camera>
+
+    <!-- والد اصلی مدل -->
+    <a-entity id="model-parent" visible="false">
+      <a-entity light="type: ambient; intensity: 0.6; color: #FFFFFF"></a-entity>
+      <a-entity light="type: directional; intensity: 0.8; color: #FFFFFF" position="0 1 1"></a-entity>
+      <a-entity id="model" position="0 0 0"></a-entity>
+    </a-entity>
+
+    <!-- تعریف وجوه مکعب -->
+    <a-entity mindar-image-target="targetIndex: 0">
+      <a-entity class="target-helper" data-face="0"></a-entity>
+    </a-entity>
+    <a-entity mindar-image-target="targetIndex: 1">
+      <a-entity class="target-helper" data-face="1"></a-entity>
+    </a-entity>
+    <a-entity mindar-image-target="targetIndex: 2">
+      <a-entity class="target-helper" data-face="2"></a-entity>
+    </a-entity>
+    <a-entity mindar-image-target="targetIndex: 3">
+      <a-entity class="target-helper" data-face="3"></a-entity>
+    </a-entity>
+    <a-entity mindar-image-target="targetIndex: 4">
+      <a-entity class="target-helper" data-face="4"></a-entity>
+    </a-entity>
+    <a-entity mindar-image-target="targetIndex: 5">
+      <a-entity class="target-helper" data-face="5"></a-entity>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    // عناصر DOM
+    const startButton = document.getElementById('startButton');
+    const loadingContainer = document.getElementById('loadingContainer');
+    const loadingText = document.getElementById('loadingText');
+    const progressBar = document.getElementById('progress');
+    const errorMessage = document.getElementById('errorMessage');
+    const sceneEl = document.querySelector('a-scene');
+    const modelParent = document.getElementById('model-parent');
+    const modelEntity = document.getElementById('model');
+
+    // پارامترهای URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const modelName = urlParams.get('model') || 'cross_section_of_artery_1.glb';
+    const manualScale = parseFloat(urlParams.get('scale')) || null;
+
+    // وضعیت برنامه
+    let progress = 0;
+    let resourcesLoaded = {
+      aframe: false,
+      mindar: false,
+      model: false
+    };
+    let currentFace = null;
+    let modelLoaded = false;
+    let isTracking = false;
+    let positionUpdateInterval = null;
+
+    // محاسبه مقیاس خودکار
+    function calculateScale(object3D) {
+      if (manualScale) {
+        return {x: manualScale, y: manualScale, z: manualScale};
+      }
+
+      const bbox = new THREE.Box3().setFromObject(object3D);
+      const size = bbox.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const targetSize = 0.15; // اندازه مناسب برای نمایش
+      const scale = targetSize / maxDim;
+      
+      return {x: scale, y: scale, z: scale};
+    }
+
+    // بارگذاری مدل
+    function loadModel() {
+      let modelPath = modelName;
+      
+      // اصلاح مسیر برای سرور محلی
+      if (!modelName.startsWith('http') && !modelName.startsWith('/') && !modelName.startsWith('./')) {
+        modelPath = `./${modelName}`;
+      }
+
+      console.log(`در حال بارگذاری مدل از: ${modelPath}`);
+      
+      modelEntity.setAttribute('gltf-model', `url(${modelPath})`);
+      
+      modelEntity.addEventListener('model-loaded', (e) => {
+        console.log('مدل با موفقیت بارگذاری شد');
+        
+        const model = e.detail.model;
+        const scale = calculateScale(model);
+        modelEntity.setAttribute('scale', `${scale.x} ${scale.y} ${scale.z}`);
+        
+        // تنظیمات اضافی برای مدل
+        model.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
+          }
+        });
+        
+        resourcesLoaded.model = true;
+        modelLoaded = true;
+        updateProgress();
+      });
+      
+      modelEntity.addEventListener('model-error', (e) => {
+        console.error('خطا در بارگذاری مدل:', e.detail);
+        showError(`خطا در بارگذاری مدل: ${modelPath}`);
+        resourcesLoaded.model = true;
+        updateProgress();
+      });
+    }
+
+    // نمایش خطا
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = 'block';
+      setTimeout(() => {
+        errorMessage.style.display = 'none';
+      }, 5000);
+    }
+
+    // به‌روزرسانی پیشرفت
+    function updateProgress() {
+      const loadedCount = Object.values(resourcesLoaded).filter(Boolean).length;
+      const totalResources = Object.keys(resourcesLoaded).length;
+      const newProgress = Math.min(progress + (loadedCount * (100 / totalResources)), 100);
+      
+      if (newProgress > progress) {
+        progress = newProgress;
+        const percent = Math.round(progress);
+        progressBar.style.width = `${percent}%`;
+        loadingText.textContent = `در حال بارگذاری... ${percent}%`;
+        
+        if (progress >= 100) {
+          setTimeout(() => {
+            loadingContainer.style.display = 'none';
+            startButton.style.display = 'block';
+          }, 500);
+        }
+      }
+    }
+
+    // به‌روزرسانی موقعیت مدل
+    function updateModelPosition() {
+      if (!modelLoaded || !isTracking) return;
+      
+      if (currentFace !== null) {
+        const targetHelper = document.querySelector(`.target-helper[data-face="${currentFace}"]`);
+        if (targetHelper && targetHelper.parentElement.object3D.visible) {
+          const target = targetHelper.parentElement;
+          
+          // کپی موقعیت و چرخش
+          modelParent.object3D.position.copy(target.object3D.position);
+          modelParent.object3D.quaternion.copy(target.object3D.quaternion);
+          modelParent.setAttribute('visible', 'true');
+        }
+      } else {
+        modelParent.setAttribute('visible', 'false');
+      }
+    }
+
+    // تنظیم رویدادهای تشخیص وجه‌ها
+    function setupTargetEvents() {
+      const targetHelpers = document.querySelectorAll('.target-helper');
+      
+      targetHelpers.forEach((helper) => {
+        const parentTarget = helper.parentElement;
+        const face = parseInt(helper.getAttribute('data-face'));
+        
+        parentTarget.addEventListener('targetFound', () => {
+          console.log(`تشخیص وجه: ${face}`);
+          
+          if (!isTracking) {
+            modelParent.setAttribute('visible', 'true');
+            isTracking = true;
+            console.log('شروع ردیابی');
+          }
+          
+          currentFace = face;
+          updateModelPosition();
+        });
+        
+        parentTarget.addEventListener('targetLost', () => {
+          if (currentFace === face) {
+            currentFace = null;
+            updateModelPosition();
+          }
+        });
+      });
+      
+      // شروع به‌روزرسانی موقعیت
+      positionUpdateInterval = setInterval(updateModelPosition, 100);
+    }
+
+    // شروع AR
+    async function startAR() {
+      try {
+        startButton.style.display = 'none';
+        loadingText.textContent = 'در حال راه‌اندازی واقعیت افزوده...';
+        loadingContainer.style.display = 'flex';
+        
+        const mindarSystem = sceneEl.systems['mindar-image-system'];
+        await mindarSystem.start();
+        
+        setupTargetEvents();
+        loadingContainer.style.display = 'none';
+        
+        // فعال کردن کنترل‌های دوربین
+        sceneEl.querySelector('a-camera').setAttribute('look-controls', 'enabled: true');
+      } catch (err) {
+        console.error('خطا در شروع AR:', err);
+        showError('خطا در شروع واقعیت افزوده. لطفاً دوربین را بررسی کنید.');
+        startButton.style.display = 'block';
+      }
+    }
+
+    // رویداد کلیک دکمه شروع
+    startButton.addEventListener('click', startAR);
+
+    // رویدادهای بارگذاری
+    sceneEl.addEventListener('loaded', () => {
+      resourcesLoaded.aframe = true;
+      updateProgress();
+    });
+
+    window.addEventListener('mindar-loaded', () => {
+      resourcesLoaded.mindar = true;
+      updateProgress();
+    });
+
+    // شبیه‌سازی بارگذاری اولیه
+    const initialLoad = setInterval(() => {
+      progress += 5;
+      if (progress >= 20) {
+        clearInterval(initialLoad);
+        resourcesLoaded.aframe = true;
+        setTimeout(() => {
+          resourcesLoaded.mindar = true;
+          updateProgress();
+        }, 300);
+      }
+      updateProgress();
+    }, 100);
+
+    // شروع بارگذاری مدل
+    loadModel();
+
+    // پاکسازی هنگام بسته شدن صفحه
+    window.addEventListener('beforeunload', () => {
+      if (positionUpdateInterval) {
+        clearInterval(positionUpdateInterval);
+      }
+    });
+  </script>
 </body>
 </html>
