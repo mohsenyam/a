@@ -124,9 +124,9 @@
 
     <!-- والد اصلی مدل -->
     <a-entity id="model-parent" visible="false">
-      <a-entity light="type: ambient; intensity: 0.8; color: #FFFFFF"></a-entity>
-      <a-entity light="type: directional; intensity: 1.2; color: #FFFFFF" position="0 1 1"></a-entity>
-      <a-entity id="model" position="0 0 0"></a-entity>
+      <a-entity light="type: ambient; intensity: 1.0; color: #FFFFFF"></a-entity>
+      <a-entity light="type: directional; intensity: 1.5; color: #FFFFFF" position="1 1 1"></a-entity>
+      <a-entity id="model" position="0 0 0" scale="0.1 0.1 0.1"></a-entity>
     </a-entity>
 
     <!-- تعریف وجوه مکعب -->
@@ -164,7 +164,7 @@
     // پارامترهای URL
     const urlParams = new URLSearchParams(window.location.search);
     const modelName = urlParams.get('model') || 'cross_section_of_artery_1.glb';
-    const manualScale = parseFloat(urlParams.get('scale')) || null;
+    const manualScale = parseFloat(urlParams.get('scale')) || 0.1;
 
     // وضعیت برنامه
     let progress = 0;
@@ -177,21 +177,6 @@
     let modelLoaded = false;
     let isTracking = false;
     let positionUpdateInterval = null;
-
-    // محاسبه مقیاس خودکار
-    function calculateScale(object3D) {
-      if (manualScale) {
-        return {x: manualScale, y: manualScale, z: manualScale};
-      }
-
-      const bbox = new THREE.Box3().setFromObject(object3D);
-      const size = bbox.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const targetSize = 0.15;
-      const scale = targetSize / maxDim;
-      
-      return {x: scale, y: scale, z: scale};
-    }
 
     // بارگذاری مدل
     function loadModel() {
@@ -213,14 +198,15 @@
       modelEntity.addEventListener('model-loaded', (e) => {
         console.log('مدل با موفقیت بارگذاری شد', e.detail.model);
         
-        const model = e.detail.model;
-        const scale = calculateScale(model);
+        // تنظیم مقیاس اولیه
+        modelEntity.setAttribute('scale', {
+          x: manualScale,
+          y: manualScale,
+          z: manualScale
+        });
         
-        modelEntity.setAttribute('scale', scale);
-        modelEntity.setAttribute('position', '0 0 0');
-        
-        // تنظیمات سایه و مواد
-        model.traverse((node) => {
+        // فعال کردن سایه‌ها
+        e.detail.model.traverse((node) => {
           if (node.isMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
@@ -281,16 +267,10 @@
       if (targetHelper && targetHelper.parentElement.object3D.visible) {
         const target = targetHelper.parentElement;
         
-        // کپی مستقیم ماتریس تبدیل
-        modelParent.object3D.matrixWorld.copy(target.object3D.matrixWorld);
-        modelParent.object3D.matrix.decompose(
-          modelParent.object3D.position,
-          modelParent.object3D.quaternion,
-          modelParent.object3D.scale
-        );
-        
+        // کپی موقعیت و چرخش
+        modelParent.object3D.position.copy(target.object3D.position);
+        modelParent.object3D.quaternion.copy(target.object3D.quaternion);
         modelParent.setAttribute('visible', 'true');
-        modelParent.object3D.updateMatrixWorld();
       }
     }
 
@@ -302,7 +282,7 @@
         const parentTarget = helper.parentElement;
         const face = parseInt(helper.getAttribute('data-face'));
         
-        parentTarget.addEventListener('targetFound', (event) => {
+        parentTarget.addEventListener('targetFound', () => {
           console.log(`تشخیص وجه: ${face}`);
           
           if (!isTracking) {
