@@ -90,19 +90,6 @@
       height: 100%;
       fill: white;
     }
-    
-    #errorMessage {
-      position: absolute;
-      bottom: 20px;
-      left: 0;
-      right: 0;
-      text-align: center;
-      color: #ff4444;
-      background: rgba(0,0,0,0.7);
-      padding: 10px;
-      display: none;
-      z-index: 1000;
-    }
   </style>
 </head>
 <body>
@@ -121,8 +108,6 @@
     </svg>
   </button>
 
-  <div id="errorMessage"></div>
-
   <a-scene
     mindar-image="imageTargetSrc: targets.mind; autoStart: false;"
     vr-mode-ui="enabled: false"
@@ -135,31 +120,41 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- والد اصلی مدل -->
-    <a-entity id="model-parent" visible="false">
-      <a-entity light="type: ambient; intensity: 1.0"></a-entity>
-      <a-entity light="type: directional; intensity: 1.2" position="1 1 1"></a-entity>
-      <a-entity id="model" position="0 0 0" scale="0.1 0.1 0.1"></a-entity>
-    </a-entity>
-
     <!-- تعریف تمام 6 وجه مکعب -->
     <a-entity mindar-image-target="targetIndex: 0">
-      <a-entity class="target-helper" data-face="0"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+      <a-entity class="model-entity" id="model-0" visible="false"></a-entity>
     </a-entity>
+    
     <a-entity mindar-image-target="targetIndex: 1">
-      <a-entity class="target-helper" data-face="1"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+      <a-entity class="model-entity" id="model-1" visible="false"></a-entity>
     </a-entity>
+    
     <a-entity mindar-image-target="targetIndex: 2">
-      <a-entity class="target-helper" data-face="2"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+      <a-entity class="model-entity" id="model-2" visible="false"></a-entity>
     </a-entity>
+    
     <a-entity mindar-image-target="targetIndex: 3">
-      <a-entity class="target-helper" data-face="3"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+      <a-entity class="model-entity" id="model-3" visible="false"></a-entity>
     </a-entity>
+    
     <a-entity mindar-image-target="targetIndex: 4">
-      <a-entity class="target-helper" data-face="4"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+      <a-entity class="model-entity" id="model-4" visible="false"></a-entity>
     </a-entity>
+    
     <a-entity mindar-image-target="targetIndex: 5">
-      <a-entity class="target-helper" data-face="5"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+      <a-entity class="model-entity" id="model-5" visible="false"></a-entity>
     </a-entity>
   </a-scene>
 
@@ -168,87 +163,72 @@
     const loadingContainer = document.getElementById('loadingContainer');
     const loadingText = document.getElementById('loadingText');
     const progressBar = document.getElementById('progress');
-    const errorMessage = document.getElementById('errorMessage');
     const sceneEl = document.querySelector('a-scene');
-    const modelParent = document.getElementById('model-parent');
-    const modelEntity = document.getElementById('model');
 
     // دریافت پارامترهای URL
     const urlParams = new URLSearchParams(window.location.search);
     const modelName = urlParams.get('model') || 'danger_of_smoking_1.glb';
-    const manualScale = parseFloat(urlParams.get('scale')) || 0.1;
+    const manualScale = urlParams.get('scale');
 
-    // وضعیت برنامه
+    // وضعیت بارگذاری
     let progress = 0;
     let resourcesLoaded = {
       aframe: false,
       mindar: false,
       model: false
     };
-    let currentFace = null;
-    let modelLoaded = false;
-    let isTracking = false;
+    let modelsLoaded = 0;
+    const totalModels = 6;
 
-    // نمایش خطا
-    function showError(message) {
-      errorMessage.textContent = message;
-      errorMessage.style.display = 'block';
-      console.error(message);
-    }
-
-    // بارگذاری مدل با مدیریت خطاهای پیشرفته
-    function loadModel() {
-      let modelPath = modelName;
-      
-      // اصلاح مسیر برای سرور محلی
-      if (!modelName.startsWith('http') && !modelName.startsWith('/') && !modelName.startsWith('./')) {
-        modelPath = `./${modelName}`;
+    // تابع محاسبه مقیاس هوشمند
+    function calculateScale(object3D) {
+      // اگر مقیاس دستی مشخص شده بود از آن استفاده می‌کنیم
+      if (manualScale) {
+        const scaleValue = parseFloat(manualScale);
+        if (!isNaN(scaleValue)) {
+          return {x: scaleValue, y: scaleValue, z: scaleValue};
+        }
       }
 
-      console.log(`در حال بارگذاری مدل از: ${modelPath}`);
+      // محاسبه مقیاس خودکار بر اساس اندازه مدل و صفحه نمایش
+      const bbox = new THREE.Box3().setFromObject(object3D);
+      const size = bbox.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
       
-      // حذف مدل قبلی اگر وجود دارد
-      modelEntity.removeAttribute('gltf-model');
-      
-      // اضافه کردن کامپوننت جدید با کش غیرفعال
-      modelEntity.setAttribute('gltf-model', {
-        src: modelPath,
-        cache: false
-      });
+      // ارتفاع هدف حدود 3% از ارتفاع صفحه نمایش
+      const targetHeight = 3 * window.innerHeight / 1000;
+      const scale = targetHeight / maxDim;
 
-      // رویداد موفقیت آمیز بارگذاری
-      modelEntity.addEventListener('model-loaded', (e) => {
-        console.log('مدل با موفقیت بارگذاری شد');
+      return {x: scale, y: scale, z: scale};
+    }
+
+    // بارگذاری مدل برای تمام وجوه
+    function loadModels() {
+      for (let i = 0; i < totalModels; i++) {
+        const modelEntity = document.getElementById(`model-${i}`);
+        modelEntity.setAttribute('gltf-model', `url(${modelName})`);
         
-        // تنظیم مقیاس
-        modelEntity.setAttribute('scale', `${manualScale} ${manualScale} ${manualScale}`);
-        
-        // فعال کردن سایه‌ها و به‌روزرسانی مواد
-        e.detail.model.traverse((node) => {
-          if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
-            if (node.material) {
-              node.material.needsUpdate = true;
-            }
+        modelEntity.addEventListener('model-loaded', (e) => {
+          // اعمال مقیاس مناسب پس از بارگذاری مدل
+          const scale = calculateScale(e.detail.model);
+          modelEntity.setAttribute('scale', `${scale.x} ${scale.y} ${scale.z}`);
+          
+          modelsLoaded++;
+          if (modelsLoaded === totalModels) {
+            resourcesLoaded.model = true;
+            updateProgress();
           }
         });
-
-        resourcesLoaded.model = true;
-        modelLoaded = true;
-        updateProgress();
-      });
-      
-      // رویداد خطای بارگذاری
-      modelEntity.addEventListener('model-error', (e) => {
-        let errorMsg = 'خطا در بارگذاری مدل';
-        if (e.detail && e.detail.message) {
-          errorMsg += `: ${e.detail.message}`;
-        }
-        showError(errorMsg);
-        resourcesLoaded.model = true; // برای ادامه روند حتی با خطا
-        updateProgress();
-      });
+        
+        modelEntity.addEventListener('model-error', (e) => {
+          console.error(`خطا در بارگذاری مدل برای وجه ${i}:`, e.detail);
+          modelsLoaded++;
+          if (modelsLoaded === totalModels) {
+            resourcesLoaded.model = true;
+            updateProgress();
+          }
+        });
+      }
     }
 
     // به روز رسانی پیشرفت بارگذاری
@@ -258,7 +238,6 @@
       if (resourcesLoaded.mindar) loadedCount++;
       if (resourcesLoaded.model) loadedCount++;
       
-      // اگر مدل بارگذاری نشد، به 100% نروید
       const newProgress = resourcesLoaded.model ? 100 : 
                          Math.min(progress + (loadedCount * 20), 80);
       
@@ -275,73 +254,34 @@
           }, 500);
         }
       }
-      
-      // اگر در 80% ماندیم و مدل بارگذاری نشده
-      if (progress >= 80 && !resourcesLoaded.model) {
-        setTimeout(() => {
-          if (!resourcesLoaded.model) {
-            showError('بارگذاری مدل زمان زیادی طول کشید. لطفاً اتصال اینترنت و مسیر مدل را بررسی کنید.');
-          }
-        }, 5000);
-      }
-    }
-
-    // به‌روزرسانی موقعیت مدل
-    function updateModelPosition() {
-      if (!modelLoaded || !isTracking || currentFace === null) return;
-      
-      const targetHelper = document.querySelector(`.target-helper[data-face="${currentFace}"]`);
-      if (targetHelper && targetHelper.parentElement.object3D.visible) {
-        const target = targetHelper.parentElement;
-        
-        // کپی مستقیم ماتریس تبدیل
-        modelParent.object3D.matrixWorld.copy(target.object3D.matrixWorld);
-        modelParent.object3D.matrix.decompose(
-          modelParent.object3D.position,
-          modelParent.object3D.quaternion,
-          modelParent.object3D.scale
-        );
-        
-        modelParent.setAttribute('visible', 'true');
-        modelParent.object3D.updateMatrixWorld();
-      }
     }
 
     // تنظیم رویدادهای تشخیص وجه‌ها
     function setupTargetEvents() {
-      const targetHelpers = document.querySelectorAll('.target-helper');
+      const modelEntities = document.querySelectorAll('.model-entity');
       
-      targetHelpers.forEach((helper) => {
-        const parentTarget = helper.parentElement;
-        const face = parseInt(helper.getAttribute('data-face'));
-        
-        parentTarget.addEventListener('targetFound', () => {
-          console.log(`تشخیص وجه: ${face}`);
+      document.querySelectorAll('[mindar-image-target]').forEach((target, index) => {
+        target.addEventListener('targetFound', () => {
+          console.log(`Face ${index} detected`);
+          // مخفی کردن تمام مدل‌ها
+          modelEntities.forEach(model => {
+            model.setAttribute('visible', 'false');
+          });
           
-          if (!isTracking) {
-            modelParent.setAttribute('visible', 'true');
-            isTracking = true;
-          }
-          
-          currentFace = face;
-          updateModelPosition();
-        });
-        
-        parentTarget.addEventListener('targetLost', () => {
-          if (currentFace === face) {
-            currentFace = null;
-            modelParent.setAttribute('visible', 'false');
+          // نمایش مدل مربوط به وجه فعلی
+          const currentModel = target.querySelector('.model-entity');
+          if (currentModel) {
+            currentModel.setAttribute('visible', 'true');
+            console.log('Model should be visible now');
           }
         });
-      });
-      
-      // حلقه به‌روزرسانی موقعیت
-      sceneEl.addEventListener('renderstart', () => {
-        const updateLoop = () => {
-          updateModelPosition();
-          requestAnimationFrame(updateLoop);
-        };
-        updateLoop();
+        
+        target.addEventListener('targetLost', () => {
+          const currentModel = target.querySelector('.model-entity');
+          if (currentModel) {
+            currentModel.setAttribute('visible', 'false');
+          }
+        });
       });
     }
 
@@ -358,10 +298,11 @@
         setupTargetEvents();
         loadingContainer.style.display = 'none';
         
+        // فعال کردن کنترل‌های دوربین پس از شروع
         sceneEl.querySelector('a-camera').setAttribute('look-controls', 'enabled: true');
       } catch (err) {
         console.error('خطا در شروع AR:', err);
-        showError('خطا در شروع AR. لطفاً دوربین را بررسی کنید.');
+        loadingText.textContent = 'خطا در شروع AR. لطفاً دوباره امتحان کنید.';
         startButton.style.display = 'block';
       }
     });
@@ -392,8 +333,8 @@
       updateProgress();
     }, 100);
 
-    // شروع بارگذاری مدل
-    loadModel();
+    // شروع بارگذاری مدل‌ها
+    loadModels();
   </script>
 </body>
 </html>
