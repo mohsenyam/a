@@ -91,13 +91,16 @@
       fill: white;
     }
     
-    #debugInfo {
+    #errorMessage {
       position: absolute;
-      bottom: 10px;
-      left: 10px;
-      color: white;
-      background: rgba(0,0,0,0.5);
-      padding: 5px;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: #ff4444;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      display: none;
       z-index: 1000;
     }
   </style>
@@ -118,7 +121,7 @@
     </svg>
   </button>
 
-  <div id="debugInfo"></div>
+  <div id="errorMessage"></div>
 
   <a-scene
     mindar-image="imageTargetSrc: targets.mind; autoStart: false;"
@@ -165,15 +168,15 @@
     const loadingContainer = document.getElementById('loadingContainer');
     const loadingText = document.getElementById('loadingText');
     const progressBar = document.getElementById('progress');
-    const debugInfo = document.getElementById('debugInfo');
+    const errorMessage = document.getElementById('errorMessage');
     const sceneEl = document.querySelector('a-scene');
     const modelParent = document.getElementById('model-parent');
     const modelEntity = document.getElementById('model');
 
     // دریافت پارامترهای URL
     const urlParams = new URLSearchParams(window.location.search);
-    const modelName = urlParams.get('model') || 'cross_section_of_artery_1.glb';
-    const manualScale = urlParams.get('scale') || 0.1;
+    const modelName = urlParams.get('model') || 'danger_of_smoking_1.glb';
+    const manualScale = parseFloat(urlParams.get('scale')) || 0.1;
 
     // وضعیت برنامه
     let progress = 0;
@@ -186,20 +189,23 @@
     let modelLoaded = false;
     let isTracking = false;
 
-    // تابع نمایش اطلاعات دیباگ
-    function updateDebugInfo(message) {
-      debugInfo.textContent = message;
-      console.log(message);
+    // نمایش خطا
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = 'block';
+      console.error(message);
     }
 
-    // بارگذاری مدل
+    // بارگذاری مدل با مدیریت خطاهای پیشرفته
     function loadModel() {
       let modelPath = modelName;
+      
+      // اصلاح مسیر برای سرور محلی
       if (!modelName.startsWith('http') && !modelName.startsWith('/') && !modelName.startsWith('./')) {
         modelPath = `./${modelName}`;
       }
 
-      updateDebugInfo(`در حال بارگذاری مدل از: ${modelPath}`);
+      console.log(`در حال بارگذاری مدل از: ${modelPath}`);
       
       // حذف مدل قبلی اگر وجود دارد
       modelEntity.removeAttribute('gltf-model');
@@ -210,8 +216,9 @@
         cache: false
       });
 
+      // رویداد موفقیت آمیز بارگذاری
       modelEntity.addEventListener('model-loaded', (e) => {
-        updateDebugInfo('مدل با موفقیت بارگذاری شد');
+        console.log('مدل با موفقیت بارگذاری شد');
         
         // تنظیم مقیاس
         modelEntity.setAttribute('scale', `${manualScale} ${manualScale} ${manualScale}`);
@@ -232,10 +239,14 @@
         updateProgress();
       });
       
+      // رویداد خطای بارگذاری
       modelEntity.addEventListener('model-error', (e) => {
-        updateDebugInfo(`خطا در بارگذاری مدل: ${e.detail.message}`);
-        loadingText.textContent = `خطا در بارگذاری مدل (${modelPath})`;
-        resourcesLoaded.model = true;
+        let errorMsg = 'خطا در بارگذاری مدل';
+        if (e.detail && e.detail.message) {
+          errorMsg += `: ${e.detail.message}`;
+        }
+        showError(errorMsg);
+        resourcesLoaded.model = true; // برای ادامه روند حتی با خطا
         updateProgress();
       });
     }
@@ -247,6 +258,7 @@
       if (resourcesLoaded.mindar) loadedCount++;
       if (resourcesLoaded.model) loadedCount++;
       
+      // اگر مدل بارگذاری نشد، به 100% نروید
       const newProgress = resourcesLoaded.model ? 100 : 
                          Math.min(progress + (loadedCount * 20), 80);
       
@@ -262,6 +274,15 @@
             startButton.style.display = 'block';
           }, 500);
         }
+      }
+      
+      // اگر در 80% ماندیم و مدل بارگذاری نشده
+      if (progress >= 80 && !resourcesLoaded.model) {
+        setTimeout(() => {
+          if (!resourcesLoaded.model) {
+            showError('بارگذاری مدل زمان زیادی طول کشید. لطفاً اتصال اینترنت و مسیر مدل را بررسی کنید.');
+          }
+        }, 5000);
       }
     }
 
@@ -295,12 +316,11 @@
         const face = parseInt(helper.getAttribute('data-face'));
         
         parentTarget.addEventListener('targetFound', () => {
-          updateDebugInfo(`تشخیص وجه: ${face}`);
+          console.log(`تشخیص وجه: ${face}`);
           
           if (!isTracking) {
             modelParent.setAttribute('visible', 'true');
             isTracking = true;
-            updateDebugInfo('شروع ردیابی');
           }
           
           currentFace = face;
@@ -340,8 +360,8 @@
         
         sceneEl.querySelector('a-camera').setAttribute('look-controls', 'enabled: true');
       } catch (err) {
-        updateDebugInfo(`خطا در شروع AR: ${err.message}`);
-        loadingText.textContent = 'خطا در شروع AR. لطفاً دوباره امتحان کنید.';
+        console.error('خطا در شروع AR:', err);
+        showError('خطا در شروع AR. لطفاً دوربین را بررسی کنید.');
         startButton.style.display = 'block';
       }
     });
