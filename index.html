@@ -1,60 +1,916 @@
 <!DOCTYPE html>
 <html lang="fa">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>مدل سه‌بعدی با پشتیبانی VR و AR</title>
-    <!-- بارگذاری کتابخانه A-Frame -->
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <!-- افزونه AR (اختیاری) -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe-ar@1.8.2/dist/aframe-ar.min.js"></script>
-    <style>
-      body, html {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>نمایشگر مدل سه‌بعدی - Physik.ir</title>
+
+  <!-- کتابخانه‌های اصلی -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <script nomodule src="https://unpkg.com/@google/model-viewer/dist/model-viewer-legacy.js"></script>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+      direction: rtl;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      touch-action: manipulation;
+      overflow: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      background-color: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .header {
+      background: linear-gradient(90deg, #2c3e50, #4ca1af);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .model-container {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      position: relative;
+      overflow: hidden;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background-color: #f0f0f0;
+      --progress-bar-color: #4ca1af;
+      --progress-bar-height: 5px;
+      --poster-color: transparent;
+    }
+
+    /* حالت استریوسکوپی برای VR */
+    .stereoscopic-mode {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      background: black;
+      display: none;
+      flex-direction: column;
+    }
+
+    .stereoscopic-view {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    .eye-view {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .eye-view model-viewer {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+    }
+
+    .left-eye {
+      border-right: 1px solid #333;
+    }
+
+    .exit-vr-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 1001;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 20px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 12px 20px;
+      border-radius: 50px;
+      backdrop-filter: blur(10px);
+    }
+
+    .control-btn {
+      width: 50px;
+      height: 50px;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+      font-size: 20px;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.1);
+    }
+
+    .control-btn:active {
+      transform: scale(0.95);
+    }
+
+    #loader {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.95);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 100;
+      transition: opacity 0.5s ease;
+    }
+
+    .loader-spinner {
+      width: 60px;
+      height: 60px;
+      border: 5px solid rgba(76, 161, 175, 0.2);
+      border-top-color: #4ca1af;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .loader-text {
+      font-size: 18px;
+      color: #2c3e50;
+      text-align: center;
+    }
+
+    /* راهنمای VR */
+    #vrGuide {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      padding: 20px;
+    }
+
+    .vr-guide-content {
+      max-width: 800px;
+      width: 90%;
+      background: rgba(30, 30, 40, 0.95);
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      position: relative;
+    }
+
+    .vr-close-btn {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vr-title {
+      font-size: 28px;
+      margin-bottom: 30px;
+      color: #4da6ff;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .vr-platform {
+      margin: 30px 0;
+      padding: 25px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 15px;
+      text-align: right;
+    }
+
+    .vr-platform h3 {
+      margin-bottom: 20px;
+      color: #ffd166;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .vr-step {
+      display: flex;
+      align-items: center;
+      margin: 18px 0;
+      text-align: right;
+      font-size: 18px;
+    }
+
+    .vr-step-number {
+      background: linear-gradient(135deg, #4ca1af, #2c3e50);
+      color: white;
+      width: 35px;
+      height: 35px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 15px;
+      flex-shrink: 0;
+      font-weight: bold;
+    }
+
+    .vr-note {
+      margin-top: 30px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      font-size: 16px;
+      color: #a0a0c0;
+    }
+
+    .footer {
+      padding: 15px;
+      text-align: center;
+      background: #f8f9fa;
+      color: #6c757d;
+      font-size: 14px;
+      border-top: 1px solid #e9ecef;
+    }
+
+    /* دکمه‌های VR و AR داخلی */
+    .model-viewer-button {
+      position: absolute;
+      bottom: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      z-index: 1;
+      font-size: 20px;
+    }
+    
+    .model-viewer-button:hover {
+      background: rgba(0, 0, 0, 0.9);
+      transform: scale(1.1);
+    }
+    
+    #ar-button {
+      right: 20px;
+    }
+    
+    #vr-button {
+      right: 80px;
+    }
+    
+    #vr-button.hidden, #ar-button.hidden {
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 20px;
       }
-      #enter-ar-msg {
-        position: absolute;
+      
+      .controls {
+        bottom: 15px;
+        padding: 10px 15px;
+      }
+      
+      .control-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+      }
+      
+      .vr-guide-content {
+        padding: 25px;
+      }
+      
+      .vr-title {
+        font-size: 24px;
+      }
+      
+      .vr-step {
+        font-size: 16px;
+      }
+      
+      .model-viewer-button {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+      }
+      
+      #ar-button {
+        right: 15px;
+      }
+      
+      #vr-button {
+        right: 70px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 10px;
+      }
+      
+      .container {
+        border-radius: 15px;
+      }
+      
+      .header {
+        padding: 15px;
+      }
+      
+      .controls {
         bottom: 10px;
-        right: 10px;
-        background: rgba(0,0,0,0.7);
-        color: #fff;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 14px;
-        z-index: 5;
+        gap: 10px;
       }
-    </style>
-  </head>
-  <body>
-    <!-- صحنه اصلی -->
-    <a-scene
-      vr-mode-ui="enabled: true"
-      arjs="sourceType: webcam; debugUIEnabled: false;"
-      renderer="antialias: true;"
-      background="color: #ECECEC"
-    >
-      <!-- نورپردازی -->
-      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
-      <a-entity light="type: directional; intensity: 0.8" position="1 1 0"></a-entity>
+      
+      .control-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+      }
+      
+      .vr-platform {
+        padding: 15px;
+      }
+      
+      .vr-step {
+        margin: 15px 0;
+      }
+      
+      .model-viewer-button {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+        bottom: 15px;
+      }
+      
+      #ar-button {
+        right: 10px;
+      }
+      
+      #vr-button {
+        right: 60px;
+      }
+    }
 
-      <!-- مدل سه‌بعدی -->
-      <a-entity
-        gltf-model="url(https://modelviewer.dev/shared-assets/models/Astronaut.glb)"
-        scale="1 1 1"
-        position="0 1.6 -2"
-        rotation="0 45 0"
-        animation="property: rotation; to: 0 405 0; loop: true; dur: 10000; easing: linear"
-      ></a-entity>
+    /* حالت افقی برای موبایل در حالت VR */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .stereoscopic-view {
+        flex-direction: row;
+      }
+      .left-eye {
+        border-right: 1px solid #333;
+        border-bottom: none;
+      }
+    }
+  </style>
+</head>
+<body>
 
-      <!-- دوربین -->
-      <a-camera position="0 1.6 0"></a-camera>
-    </a-scene>
+  <div class="container">
+    <div class="header">
+      <h1>نمایشگر مدل سه‌بعدی</h1>
+      <p>پشتیبانی از حالت‌های واقعیت مجازی (VR) و افزوده (AR)</p>
+    </div>
 
-    <!-- پیام کوچک برای راهنمای AR -->
-    <div id="enter-ar-msg">برای ورود به حالت VR روی آیکون هدست (🔲) بزنید</div>
-  </body>
+    <div class="model-container">
+      <div id="loader">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">در حال بارگذاری مدل...</div>
+      </div>
+
+      <model-viewer 
+        id="viewer"
+        alt="مدل سه‌بعدی"
+        const modelUrl = 'cross_section_of_artery_1.glb';
+        camera-controls
+        auto-rotate
+        shadow-intensity="1.2"
+        exposure="1.2"
+        environment-image="neutral"
+        interaction-prompt="when-focused"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-orbit="0deg 75deg 105%"
+        field-of-view="30deg"
+        min-camera-orbit="auto auto 0%"
+        max-camera-orbit="auto auto 105%"
+        min-field-of-view="10deg"
+        max-field-of-view="45deg"
+        bounds="tight"
+        enable-pan
+        xr-environment
+        style="width: 100%; height: 100%;"
+      >
+        <!-- دکمه AR داخلی -->
+        <button slot="ar-button" id="ar-button" class="model-viewer-button hidden">
+          🕶️
+        </button>
+        
+        <!-- دکمه VR داخلی -->
+        <button slot="vr-button" id="vr-button" class="model-viewer-button hidden">
+          👓
+        </button>
+      </model-viewer>
+
+      <div class="controls">
+        <button class="control-btn" onclick="activateAR()" title="مشاهده در واقعیت افزوده">🕶️</button>
+        <button class="control-btn" onclick="activateStereoVR()" title="مشاهده در واقعیت مجازی">👓</button>
+        <button class="control-btn" onclick="toggleAutoRotate()" title="چرخش خودکار">🔄</button>
+        <button class="control-btn" onclick="resetCamera()" title="بازنشانی دوربین">🔍</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>ساخته شده توسط تیم Physik.ir - ارائه مدل‌های سه‌بعدی آموزشی</p>
+    </div>
+  </div>
+
+  <!-- حالت استریوسکوپی برای VR -->
+  <div id="stereoscopicMode" class="stereoscopic-mode">
+    <button class="exit-vr-btn" onclick="exitStereoVR()">خروج از حالت VR</button>
+    <div class="stereoscopic-view">
+      <div class="eye-view left-eye">
+        <model-viewer 
+          id="leftView"
+          class="vr-view"
+          camera-controls
+          camera-orbit="0deg 75deg 105%"
+          field-of-view="60deg"
+          interaction-prompt="none"
+          disable-zoom
+          disable-pan
+          auto-rotate
+          style="width: 100%; height: 100%;"
+        ></model-viewer>
+      </div>
+      <div class="eye-view right-eye">
+        <model-viewer 
+          id="rightView"
+          class="vr-view"
+          camera-controls
+          camera-orbit="0deg 75deg 105%"
+          field-of-view="60deg"
+          interaction-prompt="none"
+          disable-zoom
+          disable-pan
+          auto-rotate
+          style="width: 100%; height: 100%;"
+        ></model-viewer>
+      </div>
+    </div>
+  </div>
+
+  <!-- راهنمای VR -->
+  <div id="vrGuide">
+    <div class="vr-guide-content">
+      <button class="vr-close-btn" onclick="closeVRGuide()">×</button>
+      <h2 class="vr-title">🕶️ مشاهده مدل در واقعیت مجازی (VR)</h2>
+      
+      <div class="vr-platform">
+        <h3>📱 در تلفن همراه با Cardboard یا هدست مشابه</h3>
+        <div class="vr-step">
+          <span class="vr-step-number">1</span>
+          <span>این صفحه را در مرورگر تلفن همراه خود باز کنید</span>
+        </div>
+        <div class="vr-step">
+          <span class="vr-step-number">2</span>
+          <span>روی آیکون VR در مدل (سمت راست پایین) کلیک کنید</span>
+        </div>
+        <div class="vr-step">
+          <span class="vr-step-number">3</span>
+          <span>تلفن خود را در هدست قرار دهید و از تجربه VR لذت ببرید</span>
+        </div>
+      </div>
+      
+      <div class="vr-platform">
+        <h3>💻 در کامپیوتر با هدست VR</h3>
+        <div class="vr-step">
+          <span class="vr-step-number">1</span>
+          <span>از مرورگر Chrome استفاده کنید</span>
+        </div>
+        <div class="vr-step">
+          <span class="vr-step-number">2</span>
+          <span>هدست VR خود را به کامپیوتر وصل کنید</span>
+        </div>
+        <div class="vr-step">
+          <span class="vr-step-number">3</span>
+          <span>روی آیکون VR در مدل کلیک کنید و حالت VR را فعال نمایید</span>
+        </div>
+      </div>
+      
+      <div class="vr-note">
+        <p>💡 نکته: برای بهترین تجربه، از آخرین نسخه مرورگر Chrome استفاده کنید و اطمینان حاصل کنید که هدست VR شما به درستی تنظیم شده است.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // متغیرهای جهانی
+    const viewer = document.getElementById('viewer');
+    const loader = document.getElementById('loader');
+    const vrGuide = document.getElementById('vrGuide');
+    const stereoscopicMode = document.getElementById('stereoscopicMode');
+    const leftView = document.getElementById('leftView');
+    const rightView = document.getElementById('rightView');
+    const arButton = document.getElementById('ar-button');
+    const vrButton = document.getElementById('vr-button');
+    
+    let isAutoRotating = true;
+    let isVRSupported = false;
+    let isARSupported = false;
+    let isStereoModeActive = false;
+    let originalModelSrc = '';
+    let stereoAnimationFrame = null;
+
+    // بررسی پشتیبانی از WebXR و VR
+    async function checkXRSupport() {
+      if ('xr' in navigator) {
+        try {
+          // بررسی پشتیبانی از WebXR برای VR
+          isVRSupported = await navigator.xr.isSessionSupported('immersive-vr');
+          console.log('WebXR VR supported:', isVRSupported);
+          
+          // بررسی پشتیبانی از WebXR для AR
+          isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
+          console.log('WebXR AR supported:', isARSupported);
+          
+          // نمایش دکمه‌ها بر اساس پشتیبانی مرورگر
+          if (isVRSupported && vrButton) {
+            vrButton.classList.remove('hidden');
+          }
+          
+          if (isARSupported && arButton) {
+            arButton.classList.remove('hidden');
+          }
+        } catch (error) {
+          console.error('Error checking XR support:', error);
+        }
+      } else {
+        console.log('WebXR not supported');
+        
+        // نمایش راهنمای نصب برای مرورگرهای قدیمی
+        if (!vrButton.classList.contains('hidden')) {
+          vrButton.onclick = showVRGuide;
+        }
+      }
+    }
+
+    // بارگذاری مدل و اعمال تنظیمات
+    document.addEventListener('DOMContentLoaded', () => {
+      // ذخیره آدرس مدل اصلی
+      originalModelSrc = viewer.src;
+      
+      // تنظیم مدل برای نمایش‌های چپ و راست
+      leftView.src = originalModelSrc;
+      rightView.src = originalModelSrc;
+      
+      // بررسی پشتیبانی از XR
+      checkXRSupport();
+    });
+
+    // رویدادهای مدل
+    viewer.addEventListener('load', () => {
+      // مخفی کردن loader با انیمیشن
+      loader.style.opacity = '0';
+      setTimeout(() => {
+        loader.style.display = 'none';
+      }, 500);
+      
+      // به کاربر اطلاع دهید که مدل بارگذاری شده است
+      showNotification('مدل با موفقیت بارگذاری شد!');
+    });
+
+    viewer.addEventListener('error', () => {
+      loader.querySelector('.loader-text').textContent = 'خطا در بارگذاری مدل. لطفاً صفحه را رفرش کنید.';
+      showNotification('خطا در بارگذاری مدل', 'error');
+    });
+
+    /**
+     * فعال کردن واقعیت افزوده
+     */
+    function activateAR() {
+      if (isARSupported && arButton) {
+        arButton.click();
+      } else {
+        showNotification('قابلیت AR در این مرورگر پشتیبانی نمی‌شود', 'error');
+        showVRGuide();
+      }
+    }
+
+    /**
+     * فعال کردن واقعیت مجازی استریوسکوپی
+     */
+    function activateStereoVR() {
+      if (isMobileDevice()) {
+        // فعال کردن حالت استریوسکوپی برای موبایل
+        enterStereoMode();
+      } else if (isVRSupported && vrButton) {
+        // استفاده از WebXR VR اگر پشتیبانی شود
+        vrButton.click();
+      } else {
+        showNotification('قابلیت VR در این مرورگر پشتیبانی نمی‌شود', 'error');
+        showVRGuide();
+      }
+    }
+
+    /**
+     * بررسی آیا دستگاه موبایل است
+     */
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    /**
+     * ورود به حالت استریوسکوپی
+     */
+    function enterStereoMode() {
+      isStereoModeActive = true;
+      stereoscopicMode.style.display = 'flex';
+      
+      // غیرفعال کردن اسکرول
+      document.body.style.overflow = 'hidden';
+      
+      // قفل کردن جهت صفحه به حالت افقی در موبایل
+      if (isMobileDevice()) {
+        screen.orientation.lock('landscape').catch(() => {
+          console.log('Screen orientation lock not supported');
+        });
+      }
+      
+      // شروع همگام‌سازی دوربین‌ها
+      startCameraSync();
+      
+      showNotification('حالت VR فعال شد. تلفن خود را در هدست قرار دهید.');
+    }
+
+    /**
+     * خروج از حالت استریوسکوپی
+     */
+    function exitStereoVR() {
+      isStereoModeActive = false;
+      stereoscopicMode.style.display = 'none';
+      
+      // فعال کردن مجدد اسکرول
+      document.body.style.overflow = 'auto';
+      
+      // آزاد کردن قفل جهت صفحه
+      if (isMobileDevice()) {
+        screen.orientation.unlock();
+      }
+      
+      // توقف همگام‌سازی دوربین‌ها
+      stopCameraSync();
+    }
+
+    /**
+     * شروع همگام‌سازی دوربین‌های استریو
+     */
+    function startCameraSync() {
+      if (stereoAnimationFrame) {
+        cancelAnimationFrame(stereoAnimationFrame);
+      }
+      
+      // تنظیم افست استریو برای ایجاد اثر سه‌بعدی
+      const stereoOffset = 0.5; // میزان افست برای اثر استریو
+      
+      function syncCameras() {
+        if (!isStereoModeActive) return;
+        
+        // دریافت موقعیت دوربین اصلی
+        const cameraState = viewer.getCameraOrbit();
+        
+        // ایجاد افست برای چشم چپ و راست
+        const leftCameraState = {
+          theta: cameraState.theta,
+          phi: cameraState.phi,
+          radius: cameraState.radius,
+          target: {...cameraState.target}
+        };
+        
+        const rightCameraState = {
+          theta: cameraState.theta,
+          phi: cameraState.phi,
+          radius: cameraState.radius,
+          target: {...cameraState.target}
+        };
+        
+        // اعمال افست استریو (شبیه‌سازی دید دوچشمی)
+        leftCameraState.target.x -= stereoOffset;
+        rightCameraState.target.x += stereoOffset;
+        
+        // اعمال تنظیمات دوربین به نمایش‌های چپ و راست
+        leftView.cameraOrbit = `${leftCameraState.theta}rad ${leftCameraState.phi}rad ${leftCameraState.radius}m`;
+        rightView.cameraOrbit = `${rightCameraState.theta}rad ${rightCameraState.phi}rad ${rightCameraState.radius}m`;
+        
+        // درخواست فریم بعدی انیمیشن
+        stereoAnimationFrame = requestAnimationFrame(syncCameras);
+      }
+      
+      // شروع همگام‌سازی
+      stereoAnimationFrame = requestAnimationFrame(syncCameras);
+    }
+
+    /**
+     * توقف همگام‌سازی دوربین‌های استریو
+     */
+    function stopCameraSync() {
+      if (stereoAnimationFrame) {
+        cancelAnimationFrame(stereoAnimationFrame);
+        stereoAnimationFrame = null;
+      }
+    }
+
+    /**
+     * نمایش راهنمای VR
+     */
+    function showVRGuide() {
+      vrGuide.style.display = 'flex';
+      vrGuide.style.animation = 'fadeIn 0.5s ease';
+    }
+
+    /**
+     * بستن راهنمای VR
+     */
+    function closeVRGuide() {
+      vrGuide.style.animation = 'fadeIn 0.5s ease reverse';
+      setTimeout(() => {
+        vrGuide.style.display = 'none';
+      }, 500);
+    }
+
+    /**
+     * تغییر حالت چرخش خودکار
+     */
+    function toggleAutoRotate() {
+      isAutoRotating = !isAutoRotating;
+      viewer.autoRotate = isAutoRotating;
+      showNotification(isAutoRotating ? 'چرخش خودکار فعال شد' : 'چرخش خودکار غیرفعال شد');
+    }
+
+    /**
+     * بازنشانی دوربین به حالت اولیه
+     */
+    function resetCamera() {
+      viewer.cameraOrbit = '0deg 75deg 105%';
+      viewer.fieldOfView = '30deg';
+      showNotification('دوربین بازنشانی شد');
+    }
+
+    /**
+     * نمایش اعلان به کاربر
+     */
+    function showNotification(message, type = 'success') {
+      // ایجاد عنصر اعلان
+      const notification = document.createElement('div');
+      notification.textContent = message;
+      notification.style.position = 'fixed';
+      notification.style.bottom = '20px';
+      notification.style.left = '50%';
+      notification.style.transform = 'translateX(-50%)';
+      notification.style.padding = '12px 25px';
+      notification.style.borderRadius = '30px';
+      notification.style.backgroundColor = type === 'error' ? '#ff6b6b' : '#4ca1af';
+      notification.style.color = 'white';
+      notification.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.2)';
+      notification.style.zIndex = '1000';
+      notification.style.animation = 'fadeIn 0.3s ease';
+      
+      document.body.appendChild(notification);
+      
+      // حذف خودکار اعلان پس از 3 ثانیه
+      setTimeout(() => {
+        notification.style.animation = 'fadeIn 0.3s ease reverse';
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 300);
+      }, 3000);
+    }
+
+    // مدیریت کلیک خارج از راهنمای VR برای بستن آن
+    vrGuide.addEventListener('click', (e) => {
+      if (e.target === vrGuide) {
+        closeVRGuide();
+      }
+    });
+
+    // افزودن قابلیت کلیک بر روی مدل برای توقف/شروع چرخش
+    viewer.addEventListener('click', () => {
+      // اگر چرخش خودکار فعال باشد، با کلیک متوقف می‌شود
+      if (isAutoRotating) {
+        toggleAutoRotate();
+      }
+    });
+
+    // افزودن اثر parallax به پس‌زمینه با حرکت موس
+    document.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 10;
+      const y = (e.clientY / window.innerHeight - 0.5) * 10;
+      
+      document.body.style.backgroundPosition = `${50 + x}% ${50 + y}%`;
+    });
+
+    // مدیریت تغییر اندازه صفحه
+    window.addEventListener('resize', () => {
+      if (isStereoModeActive) {
+        // به روز رسانی حالت استریو در صورت تغییر اندازه صفحه
+      }
+    });
+
+    // مدیریت تغییر جهت صفحه
+    screen.orientation.addEventListener('change', () => {
+      if (isStereoModeActive) {
+        // به روز رسانی حالت استریو در صورت تغییر جهت صفحه
+      }
+    });
+  </script>
+</body>
 </html>
