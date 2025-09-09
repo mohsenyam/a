@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>استریوسکوپی مدل سه‌بعدی</title>
+  <title>نمایش استریوسکوپی مدل سه‌بعدی شریان</title>
 
   <!-- کتابخانه model-viewer -->
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
@@ -35,12 +35,21 @@
       flex-direction: row;
       width: 100%;
       height: 100vh;
+      display: none;
     }
 
     .eye {
       flex: 1;
-      border: 1px solid #111;
       overflow: hidden;
+      position: relative;
+    }
+
+    .eye-left {
+      border-left: 2px solid #333;
+    }
+
+    .eye-right {
+      border-right: 2px solid #333;
     }
 
     .controls {
@@ -65,6 +74,17 @@
     .btn:hover {
       background: rgba(255, 255, 255, 0.4);
     }
+    
+    /* برای نمایش در دستگاه موبایل با VR */
+    @media (max-width: 768px) {
+      .stereo {
+        flex-direction: column;
+      }
+      .eye {
+        width: 100%;
+        height: 50vh;
+      }
+    }
   </style>
 </head>
 <body>
@@ -73,39 +93,45 @@
   <div id="normal" class="normal-view">
     <model-viewer id="mainViewer"
       src="cross_section_of_artery_1.glb"
-      alt="مدل سه‌بعدی"
+      alt="مدل سه‌بعدی مقطع شریان"
       camera-controls
       auto-rotate
       shadow-intensity="1"
+      exposure="1.2"
+      environment-image="neutral"
       style="width:100%; height:100%;"
     ></model-viewer>
 
     <div class="controls">
-      <button class="btn" onclick="enterStereo()">👓 حالت VR (Cardboard)</button>
+      <button class="btn" onclick="enterStereo()">👓 حالت استریوسکوپی</button>
     </div>
   </div>
 
   <!-- نمای استریوسکوپی -->
-  <div id="stereo" class="stereo" style="display:none;">
-    <div class="eye">
+  <div id="stereo" class="stereo">
+    <div class="eye eye-left">
       <model-viewer id="leftEye"
         src="cross_section_of_artery_1.glb"
         camera-controls
         shadow-intensity="1"
+        exposure="1.2"
+        environment-image="neutral"
         style="width:100%; height:100%;"
       ></model-viewer>
     </div>
-    <div class="eye">
+    <div class="eye eye-right">
       <model-viewer id="rightEye"
         src="cross_section_of_artery_1.glb"
         camera-controls
         shadow-intensity="1"
+        exposure="1.2"
+        environment-image="neutral"
         style="width:100%; height:100%;"
       ></model-viewer>
     </div>
 
     <div class="controls">
-      <button class="btn" onclick="exitStereo()">✖ خروج از VR</button>
+      <button class="btn" onclick="exitStereo()">✖ خروج از حالت استریو</button>
     </div>
   </div>
 
@@ -115,50 +141,95 @@
     const mainViewer = document.getElementById('mainViewer');
     const leftEye = document.getElementById('leftEye');
     const rightEye = document.getElementById('rightEye');
+    
+    let isStereoMode = false;
+    let cameraSyncInterval;
+
+    // تنظیمات اولیه برای حالت استریو
+    function setupStereoView() {
+      // تنظیم زاویه دوربین برای هر چشم
+      const orbit = mainViewer.getAttribute('camera-orbit') || '0deg 75deg 105%';
+      const fov = mainViewer.getAttribute('field-of-view') || '30deg';
+      
+      // تنظیم دوربین برای چشم چپ با کمی جابجایی به راست
+      leftEye.cameraOrbit = orbit;
+      leftEye.fieldOfView = fov;
+      
+      // تنظیم دوربین برای چشم راست با کمی جابجایی به چپ
+      rightEye.cameraOrbit = orbit;
+      rightEye.fieldOfView = fov;
+    }
 
     // ورود به حالت استریوسکوپی
     function enterStereo() {
-      // همگام‌سازی دوربین‌ها با مدل اصلی
-      const orbit = mainViewer.getAttribute('camera-orbit');
-      const fov = mainViewer.getAttribute('field-of-view');
-
-      leftEye.setAttribute('camera-orbit', orbit);
-      leftEye.setAttribute('field-of-view', fov);
-
-      rightEye.setAttribute('camera-orbit', orbit);
-      rightEye.setAttribute('field-of-view', fov);
-
+      setupStereoView();
       normalView.style.display = 'none';
       stereoView.style.display = 'flex';
-
-      // شروع sync مداوم
-      syncCameras();
+      isStereoMode = true;
+      
+      // شروع همگام‌سازی دوربین‌ها
+      startCameraSync();
+      
+      // اطلاع به کاربر برای استفاده از عینک VR
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        alert('لطفا تلفن خود را در عینک VR قرار دهید. برای خروج دکمه بازگشت را بزنید.');
+      }
     }
 
     // خروج از حالت استریوسکوپی
     function exitStereo() {
+      clearInterval(cameraSyncInterval);
       stereoView.style.display = 'none';
       normalView.style.display = 'block';
+      isStereoMode = false;
+      
+      // همگام‌سازی دوربین اصلی با آخرین وضعیت
+      const orbit = leftEye.getAttribute('camera-orbit');
+      mainViewer.setAttribute('camera-orbit', orbit);
     }
 
-    // همگام‌سازی دوربین چپ و راست با حرکت کاربر
-    function syncCameras() {
-      if (stereoView.style.display === 'flex') {
+    // همگام‌سازی دوربین‌ها در حالت استریو
+    function startCameraSync() {
+      cameraSyncInterval = setInterval(() => {
+        if (!isStereoMode) return;
+        
+        // گرفتن موقعیت فعلی دوربین اصلی
         const orbit = mainViewer.getAttribute('camera-orbit');
-        const fov = mainViewer.getAttribute('field-of-view');
-
-        // کمی اختلاف افقی (parallax) برای استریو
-        leftEye.setAttribute('camera-orbit', orbit.replace(/(\d+deg) (\d+deg) ([^ ]+)/,
-          (m, a, b, c) => `${a} ${b} ${c}`));
-        rightEye.setAttribute('camera-orbit', orbit.replace(/(\d+deg) (\d+deg) ([^ ]+)/,
-          (m, a, b, c) => `${parseFloat(a) + 3}deg ${b} ${c}`));
-
-        leftEye.setAttribute('field-of-view', fov);
-        rightEye.setAttribute('field-of-view', fov);
-
-        requestAnimationFrame(syncCameras);
-      }
+        const target = mainViewer.getAttribute('camera-target') || '0m 0m 0m';
+        
+        // ایجاد افست برای ایجاد اثر استریو
+        const orbitValues = orbit.match(/([-+]?\d*\.?\d+)deg/g);
+        if (orbitValues && orbitValues.length >= 2) {
+          const theta = parseFloat(orbitValues[0]);
+          const phi = parseFloat(orbitValues[1]);
+          const radius = orbit.match(/([-+]?\d*\.?\d+)m/)?.[0] || '2m';
+          
+          // ایجاد افست برای چشم‌ها (IPD - فاصله بین مردمکی)
+          const ipdOffset = 0.5; // میزان افست به متر
+          
+          // محاسبه موقعیت برای چشم چپ
+          const leftTheta = theta - (ipdOffset / 2);
+          leftEye.setAttribute('camera-orbit', `${leftTheta}deg ${phi}deg ${radius}`);
+          leftEye.setAttribute('camera-target', target);
+          
+          // محاسبه موقعیت برای چشم راست
+          const rightTheta = theta + (ipdOffset / 2);
+          rightEye.setAttribute('camera-orbit', `${rightTheta}deg ${phi}deg ${radius}`);
+          rightEye.setAttribute('camera-target', target);
+        }
+      }, 100); // به روز رسانی هر 100 میلی‌ثانیه
     }
+
+    // بارگذاری اولیه
+    window.addEventListener('load', () => {
+      // اضافه کردن event listener برای تغییرات دوربین
+      mainViewer.addEventListener('camera-change', () => {
+        if (isStereoMode) {
+          // اگر در حالت استریو هستیم، دوربین‌ها را به روز کنیم
+          startCameraSync();
+        }
+      });
+    });
   </script>
 </body>
 </html>
