@@ -139,25 +139,44 @@
     const normalView = document.getElementById('normal');
     const stereoView = document.getElementById('stereo');
     const mainViewer = document.getElementById('mainViewer');
-    const leftEye = document.getElementById('leftEye');
-    const rightEye = document.getElementById('rightEye');
+    const leftEyeViewer = document.getElementById('leftEye');
+    const rightEyeViewer = document.getElementById('rightEye');
     
     let isStereoMode = false;
     let cameraSyncInterval;
 
+    // تابع برای تجزیه رشته camera-orbit
+    function parseCameraOrbit(orbitString) {
+      if (!orbitString) return { theta: 0, phi: 75, radius: 2 };
+      
+      const values = orbitString.split(' ');
+      const theta = parseFloat(values[0]) || 0;
+      const phi = parseFloat(values[1]) || 75;
+      const radius = parseFloat(values[2]) || 2;
+      
+      return { theta, phi, radius };
+    }
+
+    // تابع برای ایجاد رشته camera-orbit
+    function createCameraOrbitString(theta, phi, radius) {
+      return `${theta}deg ${phi}deg ${radius}m`;
+    }
+
     // تنظیمات اولیه برای حالت استریو
     function setupStereoView() {
-      // تنظیم زاویه دوربین برای هر چشم
-      const orbit = mainViewer.getAttribute('camera-orbit') || '0deg 75deg 105%';
-      const fov = mainViewer.getAttribute('field-of-view') || '30deg';
+      // استفاده از ویژگی cameraOrbit به جای getAttribute
+      const orbit = mainViewer.cameraOrbit || '0deg 75deg 2m';
+      const target = mainViewer.cameraTarget || '0m 0m 0m';
+      
+      const orbitData = parseCameraOrbit(orbit);
       
       // تنظیم دوربین برای چشم چپ با کمی جابجایی به راست
-      leftEye.cameraOrbit = orbit;
-      leftEye.fieldOfView = fov;
+      leftEyeViewer.cameraOrbit = orbit;
+      leftEyeViewer.cameraTarget = target;
       
       // تنظیم دوربین برای چشم راست با کمی جابجایی به چپ
-      rightEye.cameraOrbit = orbit;
-      rightEye.fieldOfView = fov;
+      rightEyeViewer.cameraOrbit = orbit;
+      rightEyeViewer.cameraTarget = target;
     }
 
     // ورود به حالت استریوسکوپی
@@ -182,10 +201,6 @@
       stereoView.style.display = 'none';
       normalView.style.display = 'block';
       isStereoMode = false;
-      
-      // همگام‌سازی دوربین اصلی با آخرین وضعیت
-      const orbit = leftEye.getAttribute('camera-orbit');
-      mainViewer.setAttribute('camera-orbit', orbit);
     }
 
     // همگام‌سازی دوربین‌ها در حالت استریو
@@ -194,29 +209,32 @@
         if (!isStereoMode) return;
         
         // گرفتن موقعیت فعلی دوربین اصلی
-        const orbit = mainViewer.getAttribute('camera-orbit');
-        const target = mainViewer.getAttribute('camera-target') || '0m 0m 0m';
+        const orbit = mainViewer.cameraOrbit;
+        const target = mainViewer.cameraTarget || '0m 0m 0m';
         
-        // ایجاد افست برای ایجاد اثر استریو
-        const orbitValues = orbit.match(/([-+]?\d*\.?\d+)deg/g);
-        if (orbitValues && orbitValues.length >= 2) {
-          const theta = parseFloat(orbitValues[0]);
-          const phi = parseFloat(orbitValues[1]);
-          const radius = orbit.match(/([-+]?\d*\.?\d+)m/)?.[0] || '2m';
-          
-          // ایجاد افست برای چشم‌ها (IPD - فاصله بین مردمکی)
-          const ipdOffset = 0.5; // میزان افست به متر
-          
-          // محاسبه موقعیت برای چشم چپ
-          const leftTheta = theta - (ipdOffset / 2);
-          leftEye.setAttribute('camera-orbit', `${leftTheta}deg ${phi}deg ${radius}`);
-          leftEye.setAttribute('camera-target', target);
-          
-          // محاسبه موقعیت برای چشم راست
-          const rightTheta = theta + (ipdOffset / 2);
-          rightEye.setAttribute('camera-orbit', `${rightTheta}deg ${phi}deg ${radius}`);
-          rightEye.setAttribute('camera-target', target);
-        }
+        // تجزیه موقعیت دوربین
+        const orbitData = parseCameraOrbit(orbit);
+        
+        // ایجاد افست برای ایجاد اثر استریو (IPD - فاصله بین مردمکی)
+        const ipdOffset = 0.5; // میزان افست به درجه
+        
+        // تنظیم دوربین برای چشم چپ
+        const leftOrbit = createCameraOrbitString(
+          orbitData.theta - ipdOffset,
+          orbitData.phi,
+          orbitData.radius
+        );
+        leftEyeViewer.cameraOrbit = leftOrbit;
+        leftEyeViewer.cameraTarget = target;
+        
+        // تنظیم دوربین برای چشم راست
+        const rightOrbit = createCameraOrbitString(
+          orbitData.theta + ipdOffset,
+          orbitData.phi,
+          orbitData.radius
+        );
+        rightEyeViewer.cameraOrbit = rightOrbit;
+        rightEyeViewer.cameraTarget = target;
       }, 100); // به روز رسانی هر 100 میلی‌ثانیه
     }
 
