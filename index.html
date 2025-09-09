@@ -2,163 +2,1760 @@
 <html lang="fa">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>استریوسکوپی مدل سه‌بعدی</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>نمایشگر مدل سه‌بعدی و واقعیت افزوده</title>
 
-  <!-- کتابخانه model-viewer -->
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-  <script nomodule src="https://unpkg.com/@google/model-viewer/dist/model-viewer-legacy.js"></script>
+  <!-- کتابخانه‌های اصلی -->
+  <script type="module" src="model-viewer.min.js"></script>
+  <script nomodule src="model-viewer-legacy.js"></script>
+  
+  <!-- کتابخانه‌های واقعیت افزوده -->
+  <script src="aframe.min.js"></script>
+  <script src="mindar-image-aframe.prod.js"></script>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
 
   <style>
     body {
       margin: 0;
-      background: #000;
-      overflow: hidden;
+      background-color: #f8f8f8;
+      direction: rtl;
       font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      touch-action: manipulation; /* بهبود رفتار لمسی */
     }
 
-    .normal-view {
+    .container {
       width: 100%;
-      height: 100vh;
+      max-width: 854px;
+      aspect-ratio: 854 / 480;
       position: relative;
+      -webkit-tap-highlight-color: transparent; /* حذف هایلایت لمسی در موبایل */
     }
 
     model-viewer {
       width: 100%;
       height: 100%;
-      background: #000;
+      background-color: var(--model-bg-color, #fff);
+      border-radius: 8px;
+      transition: background-color 0.3s ease;
+      touch-action: pan-x pan-y; /* بهبود حرکات لمسی */
     }
 
-    /* حالت استریوسکوپی (دو چشم) */
-    .stereo {
-      display: flex;
-      flex-direction: row;
-      width: 100%;
-      height: 100vh;
-    }
-
-    .eye {
-      flex: 1;
-      border: 1px solid #111;
-      overflow: hidden;
-    }
-
-    .controls {
+    #progress-slider {
       position: absolute;
+      bottom: 64px;
+      left: 0;
+      right: 0;
+      margin: 0 20px;
+      height: 6px;
+      appearance: none;
+      background: #ccc;
+      border-radius: 4px;
+      z-index: 9;
+      accent-color: #007bff;
+      direction: ltr;
+      transition: opacity 0.5s ease;
+      opacity: 1;
+    }
+
+    #progress-slider.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .control-buttons {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      z-index: 10;
+      transition: opacity 0.5s ease;
+      opacity: 1;
+    }
+
+    .control-buttons.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .animation-controls.hidden {
+      display: none !important;
+    }
+
+    .icon-button {
+      width: 48px;
+      height: 48px;
+      background-color: transparent;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.3s, box-shadow 0.3s;
+      -webkit-tap-highlight-color: transparent; /* حذف هایلایت لمسی */
+    }
+
+    .icon-button:hover {
+      background-color: rgba(0, 123, 255, 0.1);
+      box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+    }
+
+    .icon-button svg {
+      width: 24px;
+      height: 24px;
+      fill: #ccc;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      display: none;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+      padding: 30px;
+      font-size: 18px;
+      text-align: right;
+      z-index: 20;
+      border-radius: 8px;
+      overflow-y: auto;
+      overscroll-behavior: contain; /* جلوگیری از اسکرول پس‌زمینه */
+    }
+
+    .overlay h2 {
+      width: 100%;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    .overlay p {
+      margin: 8px 0;
+      line-height: 1.8;
+    }
+
+    .extra-guide {
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .extra-guide p {
+      font-size: 16px;
+      line-height: 2;
+    }
+
+    .close-button {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 26px;
+      cursor: pointer;
+      padding: 10px; /* افزایش ناحیه کلیک برای موبایل */
+    }
+
+    #loader {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      flex-direction: column;
+      gap: 16px;
+      border-radius: 8px;
+    }
+
+    .loader-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    #backgroundPanel {
+      justify-content: flex-start;
+      padding-top: 60px;
+    }
+
+    #backgroundPanel h3 {
+      margin-bottom: 10px;
+      font-size: 18px;
+      color: #eee;
+    }
+
+    #backgroundPanel label {
+      color: #eee;
+      margin-left: 10px;
+    }
+
+    #backgroundPanel input[type="color"] {
+      width: 50px;
+      height: 30px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #backgroundPanel button:not(.close-button) {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+      min-width: 120px; /* حداقل عرض برای دکمه‌های موبایل */
+    }
+
+    #backgroundPanel button:not(.close-button):hover {
+      background: #0056b3;
+    }
+
+    .color-option {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .color-option:hover {
+      transform: scale(1.1);
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin: 15px 0;
+    }
+
+    .checkbox-container input {
+      margin-left: 10px;
+    }
+
+    /* استایل‌های جدید برای پنل اشتراک‌گذاری */
+    #sharePanel {
+      justify-content: flex-start;
+      padding-top: 60px;
+    }
+
+    #sharePanel h3 {
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #eee;
+    }
+
+    .share-option {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+      width: 100%;
+      text-align: right;
+      font-family: sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .share-option:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .share-option svg {
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    #shareUrl, #shareIframe, #shareEmbed {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      width: 100%;
+      margin-top: 10px;
+      direction: ltr;
+      text-align: left;
+      font-family: monospace;
+      font-size: 14px;
+      overflow-x: auto;
+    }
+
+    .copy-message {
+      color: #4CAF50;
+      font-size: 14px;
+      margin-top: 5px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .copy-message.show {
+      opacity: 1;
+    }
+
+    /* استایل‌های مربوط به واقعیت افزوده */
+    #arViewer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      display: none;
+    }
+
+    #arLoader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1001;
+      color: white;
+    }
+
+    .ar-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    #arProgressBar {
+      width: 80%;
+      max-width: 300px;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+
+    #arProgress {
+      height: 100%;
+      width: 0%;
+      background: #007bff;
+      transition: width 0.3s ease;
+    }
+
+    #arErrorMessage {
+      color: #ff6b6b;
+      margin-top: 15px;
+      text-align: center;
+      display: none;
+    }
+
+    #arCloseButton {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      z-index: 1002;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* کنترل‌های انیمیشن در حالت AR */
+    .ar-controls {
+      position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 10px;
-      z-index: 10;
+      align-items: center;
+      gap: 15px;
+      z-index: 1002;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px 20px;
+      border-radius: 30px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
     }
 
-    .btn {
-      background: rgba(255, 255, 255, 0.2);
-      color: #fff;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
+    .ar-controls.visible {
+      opacity: 1;
+      pointer-events: all;
     }
-    .btn:hover {
-      background: rgba(255, 255, 255, 0.4);
+
+    .ar-control-button {
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ar-control-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .ar-progress-slider {
+      width: 200px;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .ar-progress-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #007bff;
+      cursor: pointer;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        padding: 10px 0;
+      }
+      
+      .container {
+        width: 95%;
+        aspect-ratio: 16 / 9;
+        max-height: 80vh;
+      }
+
+      .overlay {
+        font-size: 16px;
+        padding: 20px;
+      }
+
+      .extra-guide p {
+        font-size: 15px;
+      }
+      
+      .control-buttons {
+        bottom: 10px;
+        gap: 8px;
+      }
+      
+      .icon-button {
+        width: 42px;
+        height: 42px;
+      }
+      
+      #progress-slider {
+        bottom: 60px;
+        margin: 0 15px;
+      }
+      
+      #backgroundPanel button:not(.close-button) {
+        width: 100%;
+        padding: 12px;
+      }
+
+      /* تنظیمات موبایل برای کنترل‌های AR */
+      .ar-controls {
+        bottom: 10px;
+        padding: 8px 15px;
+      }
+      
+      .ar-control-button {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+      }
+      
+      .ar-progress-slider {
+        width: 150px;
+      }
     }
   </style>
 </head>
 <body>
 
-  <!-- نمای معمولی -->
-  <div id="normal" class="normal-view">
-    <model-viewer id="mainViewer"
-      src="cross_section_of_artery_1.glb"
-      alt="مدل سه‌بعدی"
-      camera-controls
-      auto-rotate
-      shadow-intensity="1"
-      style="width:100%; height:100%;"
-    ></model-viewer>
+  <div class="container" id="model-container">
+    <div id="loader">
+<!--       <div class="loader-spinner"></div> -->
+<!--       <p>در حال بارگذاری مدل...</p> -->
+    </div>
 
-    <div class="controls">
-      <button class="btn" onclick="enterStereo()">👓 حالت VR (Cardboard)</button>
+    <model-viewer 
+      id="viewer"
+      alt="مدل سه‌بعدی"
+      auto-rotate 
+      camera-controls
+      shadow-intensity="1"
+      exposure="1"
+      autoplay
+      interaction-prompt="none" <!-- غیرفعال کردن prompt تعاملی برای موبایل -->
+    >
+    </model-viewer>
+
+    <input type="range" id="progress-slider" min="0" max="100" value="0" class="animation-controls" />
+
+    <div class="control-buttons" id="controls">
+      <button class="icon-button animation-controls" id="animationToggle" title="توقف انیمیشن">
+        <svg id="playIcon" viewBox="0 0 24 24" style="display: none;"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="pauseIcon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+
+      <button class="icon-button" id="rotateToggle" title="توقف چرخش خودکار">
+        <svg id="rotateOnIcon" viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/></svg>
+        <svg id="rotateOffIcon" viewBox="0 0 24 24" style="display: none;"><path d="M12 7.77L18.39 18H5.61L12 7.77M12 4L2 20h20L12 4z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="toggleFullscreen()" title="تمام‌صفحه">
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H7v5zm10 4h2v5h-5v-2h3v-3zm0-4h3V7h-3V5h5v5z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="openBackgroundPanel()" title="تغییر پس‌زمینه">
+        <svg viewBox="0 0 24 24"><path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.49 10 10-4.49 10-10 10zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="openSharePanel()" title="اشتراک‌گذاری مدل">
+        <svg viewBox="0 0 24 24"><path d="M18 16c-.8 0-1.5.4-2 1l-8-4.7c0-.1.1-.2.1-.3s0-.2-.1-.3L16 7c.5.6 1.2 1 2 1 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .1 0 .2.1.3L8 9.7C7.5 9.1 6.8 9 6 9c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.4 2-1l8 4.7c0 .1-.1.2-.1.3 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="toggleARView()" title="مشاهده در واقعیت افزوده">
+        <svg viewBox="0 0 24 24"><path d="M3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2zm0 14H5V5h14v14z"/><path d="M7 12h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm8-8h2v2h-2zm0 4h2v2h-2zm0 4h2v2h-2z"/></svg>
+      </button>
+
+      <button class="icon-button" onclick="toggleHelp()" title="راهنما">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1 .45-1.8 1.17-2.5l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+      </button>
+    </div>
+	
+    <div id="helpOverlay" class="overlay">
+      <button class="close-button" onclick="toggleHelp()">×</button>
+      <h2>راهنمای استفاده</h2>
+      <p>🔄 <strong>چرخش مدل:</strong> کلیک چپ و کشیدن، یا کشیدن با یک انگشت روی موبایل</p>
+      <p>🔍 <strong>بزرگنمایی:</strong>  اسکرول ماوس یا نیشگون (Pinch)</p>
+      <p>↔️ <strong>جابجایی:</strong> کلیک راست و کشیدن، یا دو انگشت روی موبایل</p>
+      <p>▶️ <strong>کنترل انیمیشن:</strong> استفاده از دکمه شروع/توقف برای کنترل انیمیشن مدل</p>
+      <p>🔄 <strong>چرخش خودکار:</strong> دکمه کنترل چرخش خودکار برای فعال/غیرفعال کردن چرخش مدل</p>
+      <p>🕶️ <strong>واقعیت افزوده:</strong> دکمه AR برای مشاهده مدل در محیط واقعی</p>
+      <div class="extra-guide">
+        <p>🎮 <strong>راهنمای کامل تعامل با مدل:</strong></p>
+        <p>🔁 <strong>چرخش دوربین:</strong> کشیدن یک انگشت (لمسی) یا کلیک چپ ماوس و حرکت</p>
+        <p>↔️ <strong>جابجایی:</strong> کشیدن دو انگشت یا کلیک راست ماوس و حرکت</p>
+        <p>🔎 <strong>کوچک‌نمایی:</strong> دوبار ضربه روی پس‌زمینه یا دوبار کلیک</p>
+        <p>🔄 <strong>زوم:</strong> چرخ غلتک یا نیشگون</p>
+        <p>⏯️ <strong>انیمیشن:</strong> دکمه کنترل انیمیشن پایین</p>
+        <p>🎨 <strong>تغییر پس‌زمینه:</strong> استفاده از دکمه تغییر پس‌زمینه برای انتخاب رنگ یا تصویر دلخواه</p>
+        <p>🔄 <strong>چرخش خودکار:</strong> دکمه چرخش خودکار برای متوقف کردن یا شروع چرخش مدل</p>
+        <p>💾 <strong>ذخیره تنظیمات:</strong> تنظیمات پس‌زمینه برای هر مدل به صورت جداگانه ذخیره می‌شود</p>
+        <p>🕶️ <strong>واقعیت افزوده:</strong> مدل را روی مکعب چاپ شده مشاهده کنید</p>
+      </div>
+    </div>
+
+    <div id="backgroundPanel" class="overlay" style="display: none;">
+      <button class="close-button" onclick="closeBackgroundPanel()">×</button>
+      <h2>تنظیمات پس‌زمینه</h2>
+      
+      <div class="checkbox-container">
+        <input type="radio" id="bgModeDefault" name="bgMode" value="default" checked>
+        <label for="bgModeDefault">پس‌زمینه پیش‌فرض (متناسب با مدل)</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="radio" id="bgModeGlobal" name="bgMode" value="global">
+        <label for="bgModeGlobal">پس‌زمینه سراسری (برای همه مدل‌ها)</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="radio" id="bgModeCustom" name="bgMode" value="custom">
+        <label for="bgModeCustom">پس‌زمینه سفارشی (فقط برای این مدل)</label>
+      </div>
+      
+      <div id="globalBgSettings" style="margin: 20px 0; display: none;">
+        <h3>تنظیمات پس‌زمینه سراسری:</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+          <button onclick="setGlobalBackgroundColor('#ffffff')" class="color-option" style="background: #ffffff;" title="سفید"></button>
+          <button onclick="setGlobalBackgroundColor('#f8f8f8')" class="color-option" style="background: #f8f8f8;" title="خاکستری روشن"></button>
+          <button onclick="setGlobalBackgroundColor('#000000')" class="color-option" style="background: #000000;" title="مشکی"></button>
+          <button onclick="setGlobalBackgroundColor('#1e88e5')" class="color-option" style="background: #1e88e5;" title="آبی"></button>
+          <button onclick="setGlobalBackgroundColor('#e53935')" class="color-option" style="background: #e53935;" title="قرمز"></button>
+          <button onclick="setGlobalBackgroundColor('#43a047')" class="color-option" style="background: #43a047;" title="سبز"></button>
+          <button onclick="setGlobalBackgroundColor('#ffeb3b')" class="color-option" style="background: #ffeb3b;" title="زرد"></button>
+          <button onclick="setGlobalBackgroundColor('#7b1fa2')" class="color-option" style="background: #7b1fa2;" title="بنفش"></button>
+        </div>
+        <div style="margin-top: 15px;">
+          <label for="globalCustomColor">رنگ سفارشی:</label>
+          <input type="color" id="globalCustomColor" onchange="setGlobalCustomBackgroundColor(this.value)" style="margin-right: 10px;">
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <h3>تصویر پس‌زمینه سراسری:</h3>
+          <input type="file" id="globalBgImageUpload" accept="image/*" style="display: none;" onchange="handleGlobalBackgroundImageUpload(this.files)">
+          <button onclick="document.getElementById('globalBgImageUpload').click()" style="background: #b0b0b0; border: 1px dashed #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+            انتخاب تصویر سراسری
+          </button>
+          <button onclick="removeGlobalBackgroundImage()" style="background: #b0b0b0; border: 1px solid #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+            حذف تصویر سراسری
+          </button>
+          <p style="font-size: 14px; color: #ccc; margin-top: 10px;">توجه: این تصویر برای همه مدل‌ها اعمال می‌شود.</p>
+        </div>
+      </div>
+      
+      <div id="customBgSettings" style="margin: 20px 0; display: none;">
+        <h3>تنظیمات پس‌زمینه سفارشی:</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+          <button onclick="setCustomBackgroundColor('#ffffff')" class="color-option" style="background: #ffffff;" title="سفید"></button>
+          <button onclick="setCustomBackgroundColor('#f8f8f8')" class="color-option" style="background: #f8f8f8;" title="خاکستری روشن"></button>
+          <button onclick="setCustomBackgroundColor('#000000')" class="color-option" style="background: #000000;" title="مشکی"></button>
+          <button onclick="setCustomBackgroundColor('#1e88e5')" class="color-option" style="background: #1e88e5;" title="آبی"></button>
+          <button onclick="setCustomBackgroundColor('#e53935')" class="color-option" style="background: #e53935;" title="قرمز"></button>
+          <button onclick="setCustomBackgroundColor('#43a047')" class="color-option" style="background: #43a047;" title="سبز"></button>
+          <button onclick="setCustomBackgroundColor('#ffeb3b')" class="color-option" style="background: #ffeb3b;" title="زرد"></button>
+          <button onclick="setCustomBackgroundColor('#7b1fa2')" class="color-option" style="background: #7b1fa2;" title="بنفش"></button>
+        </div>
+        <div style="margin-top: 15px;">
+          <label for="customColor">رنگ سفارشی:</label>
+          <input type="color" id="customColor" onchange="setCustomBackgroundColor(this.value)" style="margin-right: 10px;">
+        </div>
+        
+        <div style="margin: 20px 0;">
+          <h3>تصویر پس‌زمینه سفارشی:</h3>
+          <input type="file" id="bgImageUpload" accept="image/*" style="display: none;" onchange="handleBackgroundImageUpload(this.files)">
+          <button onclick="document.getElementById('bgImageUpload').click()" style="background: #b0b0b0; border: 1px dashed #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+            انتخاب تصویر سفارشی
+          </button>
+          <button onclick="removeCustomBackgroundImage()" style="background: #b0b0b0; border: 1px solid #ccc; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+            حذف تصویر سفارشی
+          </button>
+          <p style="font-size: 14px; color: #ccc; margin-top: 10px;">توجه: این تصویر فقط برای این مدل اعمال می‌شود.</p>
+        </div>
+      </div>
+
+      <button onclick="saveBackgroundSettings()" style="background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-top: 20px;">
+        ذخیره تنظیمات
+      </button>
+    </div>
+
+    <!-- پنل اشتراک‌گذاری جدید -->
+    <div id="sharePanel" class="overlay" style="display: none;">
+      <button class="close-button" onclick="closeSharePanel()">×</button>
+      <h2>اشتراک‌گذاری مدل</h2>
+      
+      <div class="share-option" onclick="copyToClipboard('shareUrl')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+        کپی لینک مستقیم
+      </div>
+      <textarea id="shareUrl" readonly rows="2"></textarea>
+      
+      <div class="share-option" onclick="copyToClipboard('shareIframe')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 12h2v5H7zm0 4h2v2H7zm0 4h2v2H7zm8-8h2v2h-2zm0 4h2v2h-2zm0 4h2v2h-2z"/></svg>
+        کپی کد iframe
+      </div>
+      <textarea id="shareIframe" readonly rows="3"></textarea>
+      
+      <div class="share-option" onclick="copyToClipboard('shareEmbed')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M8.5 15H10V9H7v1.5h1.5zM13.5 12.75L15.25 15H18l-2.25-3L18 9h-2.75l-1.75 2.25V9H11v6h1.5z"/></svg>
+        کپی کد embed
+      </div>
+      
+      <div id="copyMessage" class="copy-message">متن با موفقیت کپی شد!</div>
     </div>
   </div>
 
-  <!-- نمای استریوسکوپی -->
-  <div id="stereo" class="stereo" style="display:none;">
-    <div class="eye">
-      <model-viewer id="leftEye"
-        src="cross_section_of_artery_1.glb"
-        camera-controls
-        shadow-intensity="1"
-        style="width:100%; height:100%;"
-      ></model-viewer>
+  <!-- نمایشگر واقعیت افزوده -->
+  <div id="arViewer">
+    <!-- کنترل‌های انیمیشن در حالت AR -->
+    <div class="ar-controls" id="arControls">
+      <button class="ar-control-button" id="arPlayPauseBtn">▶️</button>
+      <input type="range" class="ar-progress-slider" id="arProgressSlider" min="0" max="100" value="0">
     </div>
-    <div class="eye">
-      <model-viewer id="rightEye"
-        src="cross_section_of_artery_1.glb"
-        camera-controls
-        shadow-intensity="1"
-        style="width:100%; height:100%;"
-      ></model-viewer>
-    </div>
+    
+    <a-scene
+      id="arScene"
+      mindar-image="imageTargetSrc: targets.mind; autoStart: false;"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true;"
+    >
+      <a-assets></a-assets>
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <div class="controls">
-      <button class="btn" onclick="exitStereo()">✖ خروج از VR</button>
-    </div>
+      <!-- تعریف 6 وجه مکعب با مدل جداگانه -->
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+        <a-entity class="model-entity" rotation="0 0 0" visible="false" animation-mixer="loop: repeat"></a-entity>
+      </a-entity>
+
+      <a-entity mindar-image-target="targetIndex: 1">
+        <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+        <a-entity class="model-entity" rotation="0 90 0" visible="false" animation-mixer="loop: repeat"></a-entity>
+      </a-entity>
+
+      <a-entity mindar-image-target="targetIndex: 2">
+        <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+        <a-entity class="model-entity" rotation="0 180 0" visible="false" animation-mixer="loop: repeat"></a-entity>
+      </a-entity>
+
+      <a-entity mindar-image-target="targetIndex: 3">
+        <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+        <a-entity class="model-entity" rotation="0 -90 0" visible="false" animation-mixer="loop: repeat"></a-entity>
+      </a-entity>
+
+      <a-entity mindar-image-target="targetIndex: 4">
+        <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+        <a-entity class="model-entity" rotation="90 0 0" visible="false" animation-mixer="loop: repeat"></a-entity>
+      </a-entity>
+
+      <a-entity mindar-image-target="targetIndex: 5">
+        <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; intensity: 0.5" position="0 1 1"></a-entity>
+        <a-entity class="model-entity" rotation="-90 0 0" visible="false" animation-mixer="loop: repeat"></a-entity>
+      </a-entity>
+    </a-scene>
+    <button id="arCloseButton" onclick="closeARView()">×</button>
+  </div>
+
+  <div id="arLoader">
+    <div class="ar-spinner"></div>
+    <div id="arLoadingText">در حال راه‌اندازی واقعیت افزوده...</div>
+    <div id="arProgressBar"><div id="arProgress"></div></div>
+    <div id="arErrorMessage"></div>
   </div>
 
   <script>
-    const normalView = document.getElementById('normal');
-    const stereoView = document.getElementById('stereo');
-    const mainViewer = document.getElementById('mainViewer');
-    const leftEye = document.getElementById('leftEye');
-    const rightEye = document.getElementById('rightEye');
+    /**
+     * مدیریت نمایشگر مدل سه‌بعدی و واقعیت افزوده
+     * این اسکریپت امکان نمایش و کنترل مدل‌های سه‌بعدی با فرمت glb/usdz را فراهم می‌کند
+     * و شامل امکاناتی مانند کنترل انیمیشن، تغییر پس‌زمینه، اشتراک‌گذاری مدل و واقعیت افزوده است.
+     */
+    
+    // دریافت پارامترهای URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const modelFile = urlParams.get('model') || 'danger_of_smoking_1.glb';
+    const defaultBgColor = urlParams.get('bg') || '#ffffff';
 
-    // ورود به حالت استریوسکوپی
-    function enterStereo() {
-      // همگام‌سازی دوربین‌ها با مدل اصلی
-      const orbit = mainViewer.getAttribute('camera-orbit');
-      const fov = mainViewer.getAttribute('field-of-view');
-
-      leftEye.setAttribute('camera-orbit', orbit);
-      leftEye.setAttribute('field-of-view', fov);
-
-      rightEye.setAttribute('camera-orbit', orbit);
-      rightEye.setAttribute('field-of-view', fov);
-
-      normalView.style.display = 'none';
-      stereoView.style.display = 'flex';
-
-      // شروع sync مداوم
-      syncCameras();
+    /**
+     * تولید مسیر فایل USDZ بر اساس نام فایل GLB
+     * @param {string} glbPath - مسیر فایل GLB
+     * @return {string} مسیر فایل USDZ متناظر
+     */
+    function getUsdzPath(glbPath) {
+      return glbPath.replace('.glb', '.usdz');
     }
 
-    // خروج از حالت استریوسکوپی
-    function exitStereo() {
-      stereoView.style.display = 'none';
-      normalView.style.display = 'block';
+    // بارگذاری مدل و اعمال تنظیمات
+    document.addEventListener('DOMContentLoaded', () => {
+      const viewer = document.getElementById('viewer');
+      const usdzFile = getUsdzPath(modelFile);
+      
+      // تنظیم مدل‌ها
+      viewer.src = modelFile;
+      viewer.setAttribute('ios-src', usdzFile);
+      
+      // اعمال رنگ پس‌زمینه پیش‌فرض
+      document.documentElement.style.setProperty('--model-bg-color', defaultBgColor);
+      viewer.style.backgroundColor = defaultBgColor;
+      
+      // ذخیره تنظیمات اولیه
+      currentModelSettings = {
+        color: defaultBgColor,
+        image: ''
+      };
+      
+      // بارگذاری تنظیمات پس‌زمینه
+      loadBackgroundSettings();
+      
+      // آماده‌سازی نمایشگر AR
+      setupARScene();
+    });
+
+    // متغیرهای جهانی
+    const viewer = document.getElementById('viewer');
+    const animationToggle = document.getElementById('animationToggle');
+    const rotateToggle = document.getElementById('rotateToggle');
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const rotateOnIcon = document.getElementById('rotateOnIcon');
+    const rotateOffIcon = document.getElementById('rotateOffIcon');
+    const slider = document.getElementById('progress-slider');
+    const loader = document.getElementById('loader');
+    const controls = document.getElementById('controls');
+    const container = document.getElementById('model-container');
+    const animationControls = document.querySelectorAll('.animation-controls');
+    
+    // متغیرهای مربوط به واقعیت افزوده
+    const arViewer = document.getElementById('arViewer');
+    const arLoader = document.getElementById('arLoader');
+    const arLoadingText = document.getElementById('arLoadingText');
+    const arProgress = document.getElementById('arProgress');
+    const arErrorMessage = document.getElementById('arErrorMessage');
+    const arScene = document.getElementById('arScene');
+    const arCloseButton = document.getElementById('arCloseButton');
+    const arControls = document.getElementById('arControls');
+    const arPlayPauseBtn = document.getElementById('arPlayPauseBtn');
+    const arProgressSlider = document.getElementById('arProgressSlider');
+    
+    let isPlaying = true;
+    let isAutoRotating = true;
+    let wasPlayingBeforeDrag = false;
+    let isDragging = false;
+    let rafId = null;
+    let hideTimeout;
+    let currentModelSettings = {
+      color: '#ffffff',
+      image: ''
+    };
+    let globalBackgroundSettings = {
+      color: '',
+      image: ''
+    };
+    let currentModelId = '';
+    let hasAnimations = false;
+    let currentBackgroundMode = 'default'; // 'default', 'global', 'custom'
+    
+    // متغیرهای AR
+    let isARActive = false;
+    let isModelLoadedInAR = false;
+    let modelEntitiesAR = [];
+    let arAnimations = [];
+    let isARPlaying = true;
+    let arAnimationMixers = [];
+    let arAnimationActions = [];
+    let arAnimationClip = null;
+    let arAnimationDuration = 0;
+    let arRafId = null;
+    let originalDuration = 0; // مدت زمان انیمیشن اصلی
+    let lastARUpdateTime = 0;
+
+    // تنظیم حالت اولیه آیکون‌ها
+    pauseIcon.style.display = 'block';
+    playIcon.style.display = 'none';
+    rotateOnIcon.style.display = 'block';
+    rotateOffIcon.style.display = 'none';
+
+    /**
+     * تولید شناسه منحصر به فرد برای مدل بر اساس آدرس فایل
+     * @return {string} شناسه منحصر به فرد مدل
+     */
+    function getModelId() {
+      const modelSrc = viewer.getAttribute('src');
+      return modelSrc ? modelSrc : 'default-model';
     }
 
-    // همگام‌سازی دوربین چپ و راست با حرکت کاربر
-    function syncCameras() {
-      if (stereoView.style.display === 'flex') {
-        const orbit = mainViewer.getAttribute('camera-orbit');
-        const fov = mainViewer.getAttribute('field-of-view');
+    /**
+     * بارگذاری تنظیمات پس‌زمینه از localStorage
+     * این تابع تنظیمات ذخیره شده برای مدل فعلی و تنظیمات سراسری را بارگذاری می‌کند
+     */
+    function loadBackgroundSettings() {
+      currentModelId = getModelId();
+      
+      // بارگذاری تنظیمات سراسری
+      const savedGlobalSettings = localStorage.getItem('modelViewerGlobalBackground');
+      if (savedGlobalSettings) {
+        globalBackgroundSettings = JSON.parse(savedGlobalSettings);
+      }
+      
+      // بارگذاری تنظیمات سفارشی برای مدل فعلی
+      const savedSettings = localStorage.getItem(`modelViewerBackground_${currentModelId}`);
+      if (savedSettings) {
+        currentModelSettings = JSON.parse(savedSettings);
+      }
+      
+      // بارگذاری حالت پس‌زمینه
+      const savedBgMode = localStorage.getItem('modelViewerBackgroundMode');
+      currentBackgroundMode = savedBgMode || 'default';
+      
+      // اعمال تنظیمات پس‌زمینه بر اساس حالت انتخاب شده
+      applyBackgroundSettings();
+    }
 
-        // کمی اختلاف افقی (parallax) برای استریو
-        leftEye.setAttribute('camera-orbit', orbit.replace(/(\d+deg) (\d+deg) ([^ ]+)/,
-          (m, a, b, c) => `${a} ${b} ${c}`));
-        rightEye.setAttribute('camera-orbit', orbit.replace(/(\d+deg) (\d+deg) ([^ ]+)/,
-          (m, a, b, c) => `${parseFloat(a) + 3}deg ${b} ${c}`));
-
-        leftEye.setAttribute('field-of-view', fov);
-        rightEye.setAttribute('field-of-view', fov);
-
-        requestAnimationFrame(syncCameras);
+    /**
+     * اعمال تنظیمات پس‌زمینه بر اساس حالت انتخاب شده
+     * این تابع تنظیمات پس‌زمینه را بر اساس حالت فعلی (پیش‌فرض، سراسری یا سفارشی) اعمال می‌کند
+     */
+    function applyBackgroundSettings() {
+      if (currentBackgroundMode === 'global') {
+        // حالت پس‌زمینه سراسری
+        if (globalBackgroundSettings.image) {
+          viewer.style.backgroundImage = `url(${globalBackgroundSettings.image})`;
+          viewer.style.backgroundSize = 'cover';
+          viewer.style.backgroundColor = '';
+        } else if (globalBackgroundSettings.color) {
+          viewer.style.backgroundColor = globalBackgroundSettings.color;
+          viewer.style.backgroundImage = 'none';
+        } else {
+          // اگر تنظیمات سراسری وجود ندارد، از پیش‌فرض استفاده کنید
+          viewer.style.backgroundColor = defaultBgColor;
+          viewer.style.backgroundImage = 'none';
+        }
+      } else if (currentBackgroundMode === 'custom') {
+        // حالت پس‌زمینه سفارشی
+        if (currentModelSettings.image) {
+          viewer.style.backgroundImage = `url(${currentModelSettings.image})`;
+          viewer.style.backgroundSize = 'cover';
+          viewer.style.backgroundColor = '';
+        } else {
+          viewer.style.backgroundColor = currentModelSettings.color || defaultBgColor;
+          viewer.style.backgroundImage = 'none';
+        }
+      } else {
+        // حالت پیش‌فرض (استفاده از تنظیمات URL)
+        viewer.style.backgroundColor = defaultBgColor;
+        viewer.style.backgroundImage = 'none';
       }
     }
+
+    /**
+     * ذخیره تنظیمات پس‌زمینه در localStorage
+     * این تابع تنظیمات فعلی را در localStorage ذخیره می‌کند
+     */
+    function saveBackgroundSettings() {
+      currentModelId = getModelId();
+      
+      // ذخیره حالت پس‌زمینه
+      localStorage.setItem('modelViewerBackgroundMode', currentBackgroundMode);
+      
+      // ذخیره تنظیمات سراسری
+      localStorage.setItem('modelViewerGlobalBackground', JSON.stringify(globalBackgroundSettings));
+      
+      // ذخیره تنظیمات سفارشی برای مدل فعلی
+      localStorage.setItem(`modelViewerBackground_${currentModelId}`, JSON.stringify(currentModelSettings));
+      
+      // اعمال تنظیمات جدید
+      applyBackgroundSettings();
+      
+      closeBackgroundPanel();
+    }
+
+    /**
+     * بازنشانی به تنظیمات پیش‌فرض
+     * این تابع تنظیمات پس‌زمینه را به حالت پیش‌فرض بازمی‌گرداند
+     */
+    function resetToDefaultBackground() {
+      viewer.style.backgroundColor = defaultBgColor;
+      viewer.style.backgroundImage = '';
+      currentModelSettings = {
+        color: defaultBgColor,
+        image: ''
+      };
+      currentBackgroundMode = 'default';
+    }
+
+    /**
+     * بررسی وجود انیمیشن در مدل
+     * @return {Promise<boolean>} وجود یا عدم وجود انیمیشن در مدل
+     */
+    function checkForAnimations() {
+      return new Promise((resolve) => {
+        if (viewer.availableAnimations && viewer.availableAnimations.length > 0) {
+          resolve(true);
+        } else {
+          setTimeout(() => {
+            const hasDuration = viewer.duration > 0;
+            resolve(hasDuration);
+          }, 500);
+        }
+      });
+    }
+
+    /**
+     * تنظیم نمایش کنترل‌های انیمیشن بر اساس وجود انیمیشن
+     * @param {boolean} hasAnim - آیا مدل دارای انیمیشن است یا خیر
+     */
+    function setupAnimationControls(hasAnim) {
+      hasAnimations = hasAnim;
+      
+      if (hasAnimations) {
+        animationControls.forEach(control => {
+          control.classList.remove('hidden');
+        });
+        
+        if (isPlaying) {
+          startAnimationLoop();
+        }
+      } else {
+        animationControls.forEach(control => {
+          control.classList.add('hidden');
+        });
+        
+        stopAnimationLoop();
+      }
+    }
+
+    // رویدادهای مدل
+    viewer.addEventListener('load', async () => {
+      loader.style.display = 'none';
+      
+      const hasAnim = await checkForAnimations();
+      setupAnimationControls(hasAnim);
+      
+      // ذخیره مدت زمان انیمیشن اصلی برای همگام‌سازی با AR
+      if (hasAnim) {
+        originalDuration = viewer.duration;
+      }
+    });
+
+    viewer.addEventListener('ar-status', (event) => {
+      if (event.detail.status === 'session-started') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.log("خطا در ورود به حالت تمام‌صفحه:", err);
+          });
+        }
+      }
+    });
+
+    /**
+     * مدیریت رویداد کلیک روی دکمه کنترل انیمیشن
+     */
+    animationToggle.addEventListener('click', () => {
+      if (!hasAnimations) return;
+      
+      if (isPlaying) {
+        viewer.pause();
+        pauseIcon.style.display = 'none';
+        playIcon.style.display = 'block';
+        animationToggle.setAttribute('title', 'شروع انیمیشن');
+        stopAnimationLoop();
+      } else {
+        viewer.play();
+        pauseIcon.style.display = 'block';
+        playIcon.style.display = 'none';
+        animationToggle.setAttribute('title', 'توقف انیمیشن');
+        startAnimationLoop();
+      }
+      isPlaying = !isPlaying;
+      showControls();
+    });
+
+    /**
+     * مدیریت رویداد کلیک روی دکمه کنترل چرخش خودکار
+     */
+    rotateToggle.addEventListener('click', () => {
+      if (isAutoRotating) {
+        viewer.autoRotate = false;
+        rotateOnIcon.style.display = 'none';
+        rotateOffIcon.style.display = 'block';
+        rotateToggle.setAttribute('title', 'شروع چرخش خودکار');
+      } else {
+        viewer.autoRotate = true;
+        rotateOnIcon.style.display = 'block';
+        rotateOffIcon.style.display = 'none';
+        rotateToggle.setAttribute('title', 'توقف چرخش خودکار');
+      }
+      isAutoRotating = !isAutoRotating;
+      showControls();
+    });
+
+    /**
+     * به‌روزرسانی موقعیت اسلایدر پیشرفت انیمیشن
+     */
+    function updateSlider() {
+      if (!hasAnimations) return;
+      
+      const duration = viewer.duration;
+      const currentTime = viewer.currentTime;
+      if (duration && !isDragging) {
+        slider.value = (currentTime / duration) * 100;
+      }
+      rafId = requestAnimationFrame(updateSlider);
+    }
+
+    /**
+     * شروع حلقه انیمیشن برای به‌روزرسانی اسلایدر
+     */
+    function startAnimationLoop() {
+      if (!hasAnimations) return;
+      
+      cancelAnimationFrame(rafId);
+      updateSlider();
+    }
+
+    /**
+     * توقف حلقه انیمیشن
+     */
+    function stopAnimationLoop() {
+      cancelAnimationFrame(rafId);
+    }
+
+    // رویدادهای اسلایدر پیشرفت انیمیشن
+    slider.addEventListener('pointerdown', () => {
+      if (!hasAnimations) return;
+      
+      isDragging = true;
+      wasPlayingBeforeDrag = isPlaying;
+      if (isPlaying) {
+        viewer.pause();
+        stopAnimationLoop();
+      }
+      showControls();
+    });
+
+    slider.addEventListener('input', () => {
+      if (!hasAnimations) return;
+      
+      const duration = viewer.duration;
+      if (duration) {
+        viewer.currentTime = (slider.value / 100) * duration;
+      }
+    });
+
+    slider.addEventListener('pointerup', () => {
+      if (!hasAnimations) return;
+      
+      if (wasPlayingBeforeDrag) {
+        viewer.play();
+        startAnimationLoop();
+      }
+      isDragging = false;
+      showControls();
+    });
+
+    /**
+     * تغییر حالت تمام‌صفحه
+     */
+    function toggleFullscreen() {
+      const container = document.querySelector('.container');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+          alert(`تمام‌صفحه نشد: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+      showControls();
+    }
+
+    /**
+     * نمایش/پنهان کردن پنل راهنما
+     */
+    function toggleHelp() {
+      const overlay = document.getElementById('helpOverlay');
+      overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+      showControls();
+    }
+
+    /**
+     * نمایش کنترل‌ها به صورت موقت
+     */
+    function showControls() {
+      controls.classList.remove('hidden');
+      if (hasAnimations) {
+        slider.classList.remove('hidden');
+      }
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        controls.classList.add('hidden');
+        if (hasAnimations) {
+          slider.classList.add('hidden');
+        }
+      }, 3000);
+    }
+
+    /**
+     * نمایش پنل تنظیمات پس‌زمینه
+     */
+    function openBackgroundPanel() {
+      const panel = document.getElementById('backgroundPanel');
+      panel.style.display = 'flex';
+      
+      // تنظیم حالت رادیو باتن‌ها بر اساس حالت فعلی
+      document.getElementById(`bgMode${currentBackgroundMode.charAt(0).toUpperCase() + currentBackgroundMode.slice(1)}`).checked = true;
+      
+      // نمایش بخش‌های مربوطه
+      document.getElementById('globalBgSettings').style.display = currentBackgroundMode === 'global' ? 'block' : 'none';
+      document.getElementById('customBgSettings').style.display = currentBackgroundMode === 'custom' ? 'block' : 'none';
+      
+      showControls();
+    }
+
+    /**
+     * بستن پنل تنظیمات پس‌زمینه
+     */
+    function closeBackgroundPanel() {
+      document.getElementById('backgroundPanel').style.display = 'none';
+      showControls();
+    }
+
+    /**
+     * تغییر حالت پس‌زمینه
+     * @param {string} mode - حالت جدید ('default', 'global', 'custom')
+     */
+    function changeBackgroundMode(mode) {
+      currentBackgroundMode = mode;
+      
+      // نمایش بخش‌های مربوطه
+      document.getElementById('globalBgSettings').style.display = mode === 'global' ? 'block' : 'none';
+      document.getElementById('customBgSettings').style.display = mode === 'custom' ? 'block' : 'none';
+      
+      // اعمال تنظیمات جدید
+      applyBackgroundSettings();
+    }
+
+    /**
+     * تنظیم رنگ پس‌زمینه سراسری
+     * @param {string} color - رنگ جدید پس‌زمینه
+     */
+    function setGlobalBackgroundColor(color) {
+      globalBackgroundSettings.color = color;
+      globalBackgroundSettings.image = '';
+      if (currentBackgroundMode === 'global') {
+        viewer.style.backgroundColor = color;
+        viewer.style.backgroundImage = 'none';
+      }
+    }
+
+    /**
+     * تنظیم رنگ سفارشی پس‌زمینه سراسری
+     * @param {string} color - رنگ جدید پس‌زمینه
+     */
+    function setGlobalCustomBackgroundColor(color) {
+      setGlobalBackgroundColor(color);
+    }
+
+    /**
+     * مدیریت آپلود تصویر پس‌زمینه سراسری
+     * @param {FileList} files - لیست فایل‌های انتخاب شده
+     */
+    function handleGlobalBackgroundImageUpload(files) {
+      if (files && files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          globalBackgroundSettings.image = e.target.result;
+          globalBackgroundSettings.color = '';
+          if (currentBackgroundMode === 'global') {
+            viewer.style.backgroundImage = `url(${e.target.result})`;
+            viewer.style.backgroundSize = 'cover';
+            viewer.style.backgroundColor = '';
+          }
+        };
+        reader.readAsDataURL(files[0]);
+      }
+    }
+
+    /**
+     * حذف تصویر پس‌زمینه سراسری
+     */
+    function removeGlobalBackgroundImage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const defaultBg = urlParams.get('bg') || '#ffffff';
+      
+      globalBackgroundSettings.image = '';
+      globalBackgroundSettings.color = defaultBg;
+      if (currentBackgroundMode === 'global') {
+        viewer.style.backgroundImage = '';
+        viewer.style.backgroundColor = defaultBg;
+      }
+    }
+
+    /**
+     * تنظیم رنگ پس‌زمینه سفارشی
+     * @param {string} color - رنگ جدید پس‌زمینه
+     */
+    function setCustomBackgroundColor(color) {
+      currentModelSettings.color = color;
+      currentModelSettings.image = '';
+      if (currentBackgroundMode === 'custom') {
+        viewer.style.backgroundColor = color;
+        viewer.style.backgroundImage = 'none';
+      }
+    }
+
+    /**
+     * مدیریت آپلود تصویر پس‌زمینه سفارشی
+     * @param {FileList} files - لیست فایل‌های انتخاب شده
+     */
+    function handleBackgroundImageUpload(files) {
+      if (files && files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          currentModelSettings.image = e.target.result;
+          currentModelSettings.color = '';
+          if (currentBackgroundMode === 'custom') {
+            viewer.style.backgroundImage = `url(${e.target.result})`;
+            viewer.style.backgroundSize = 'cover';
+            viewer.style.backgroundColor = '';
+          }
+        };
+        reader.readAsDataURL(files[0]);
+      }
+    }
+
+    /**
+     * حذف تصویر پس‌زمینه سفارشی
+     */
+    function removeCustomBackgroundImage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const defaultBg = urlParams.get('bg') || '#ffffff';
+      
+      currentModelSettings.image = '';
+      currentModelSettings.color = defaultBg;
+      if (currentBackgroundMode === 'custom') {
+        viewer.style.backgroundImage = '';
+        viewer.style.backgroundColor = defaultBg;
+      }
+    }
+
+    /**
+     * نمایش پنل اشتراک‌گذاری
+     */
+    function openSharePanel() {
+      const panel = document.getElementById('sharePanel');
+      panel.style.display = 'flex';
+      
+      // تولید لینک‌ها
+      const currentUrl = window.location.href;
+
+      // کد iframe
+      const iframeCode = `
+        <iframe 
+          src="${currentUrl}" 
+          width="100%" 
+          height="500px" 
+          style="border: none;"
+          allowfullscreen
+          allow="fullscreen"
+        ></iframe>
+      `;
+
+      // کد embed
+      const embedCode = `
+        <div style="width: 100%; height: 500px;">
+          <iframe 
+            src="${currentUrl}" 
+            style="width: 100%; height: 100%; border: none;"
+            allowfullscreen
+            allow="fullscreen"
+          ></iframe>
+        </div>
+      `;
+      
+      document.getElementById('shareUrl').value = currentUrl;
+      document.getElementById('shareIframe').value = iframeCode;
+      document.getElementById('shareEmbed').value = embedCode;
+      
+      showControls();
+    }
+
+    /**
+     * بستن پنل اشتراک‌گذاری
+     */
+    function closeSharePanel() {
+      document.getElementById('sharePanel').style.display = 'none';
+      showControls();
+    }
+
+    /**
+     * کپی متن به کلیپ‌بورد
+     * @param {string} elementId - شناسه المان حاوی متن برای کپی
+     */
+    function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      element.select();
+      document.execCommand('copy');
+      
+      const message = document.getElementById('copyMessage');
+      message.classList.add('show');
+      setTimeout(() => {
+        message.classList.remove('show');
+      }, 2000);
+    }
+
+    /**
+     * آماده‌سازی صحنه واقعیت افزوده
+     */
+    function setupARScene() {
+      modelEntitiesAR = document.querySelectorAll('#arScene .model-entity');
+      
+      modelEntitiesAR.forEach((modelEntity) => {
+        modelEntity.setAttribute('gltf-model', `url(${modelFile})`);
+        
+        modelEntity.addEventListener('model-loaded', (e) => {
+          const scale = calculateScaleAR(e.detail.model);
+          modelEntity.setAttribute('scale', `${scale.x} ${scale.y} ${scale.z}`);
+          modelEntity.setAttribute('position', '0 0 0.05');
+          
+          // تنظیم انیمیشن‌ها برای مدل AR
+          setupARAnimations(modelEntity);
+          
+          if (!isModelLoadedInAR) {
+            isModelLoadedInAR = true;
+            updateARProgress(100);
+          }
+        });
+        
+        modelEntity.addEventListener('model-error', (e) => {
+          console.error('خطا در بارگذاری مدل AR:', e.detail);
+          arErrorMessage.textContent = 'خطا در بارگذاری مدل در حالت واقعیت افزوده.';
+          arErrorMessage.style.display = 'block';
+          updateARProgress(100);
+        });
+      });
+      
+      // تنظیم رویدادهای هدف‌گیری
+      setupARTargetEvents();
+      
+      // شبیه‌سازی بارگذاری
+      simulateARLoading();
+      
+      // تنظیم کنترل‌های AR
+      setupARControls();
+    }
+    
+    /**
+     * تنظیم انیمیشن‌ها برای مدل AR
+     * @param {HTMLElement} modelEntity - المان مدل در صحنه AR
+     */
+    function setupARAnimations(modelEntity) {
+      const model = modelEntity.object3D;
+      if (!model) return;
+      
+      // یافتن انیمیشن‌ها
+      model.traverse((child) => {
+        if (child.animations && child.animations.length > 0) {
+          arAnimations = child.animations;
+        }
+      });
+      
+      // اگر انیمیشن وجود دارد، کنترل‌ها را فعال کنید
+      if (arAnimations.length > 0) {
+        arAnimationClip = arAnimations[0];
+        arAnimationDuration = arAnimationClip.duration;
+        
+        // ایجاد AnimationMixer برای هر مدل
+        arAnimationMixers = [];
+        arAnimationActions = [];
+        
+        modelEntitiesAR.forEach((entity) => {
+          const mixer = new THREE.AnimationMixer(entity.object3D);
+          const action = mixer.clipAction(arAnimationClip);
+          
+          // تنظیم سرعت انیمیشن بر اساس مدل اصلی
+          if (originalDuration && arAnimationDuration) {
+            const speedFactor = originalDuration / arAnimationDuration;
+            action.timeScale = speedFactor;
+          }
+          
+          action.play();
+          
+          arAnimationMixers.push(mixer);
+          arAnimationActions.push(action);
+        });
+        
+        // شروع به‌روزرسانی انیمیشن
+        startARAnimationLoop();
+        
+        // نمایش کنترل‌های AR
+        arControls.classList.add('visible');
+      } else {
+        arControls.classList.remove('visible');
+      }
+    }
+    
+    /**
+     * شروع حلقه انیمیشن AR
+     */
+    function startARAnimationLoop() {
+      if (arAnimationMixers.length === 0) return;
+      
+      lastARUpdateTime = performance.now();
+      
+      function updateARAnimation(time) {
+        if (!lastARUpdateTime) lastARUpdateTime = time;
+        
+        // محدود کردن delta به حداکثر 0.1 ثانیه برای جلوگیری از جهش‌های بزرگ
+        const delta = Math.min((time - lastARUpdateTime) / 1000, 0.1);
+        lastARUpdateTime = time;
+        
+        arAnimationMixers.forEach(mixer => {
+          mixer.update(delta);
+        });
+        
+        // به‌روزرسانی اسلایدر پیشرفت
+        if (isARPlaying && arAnimationDuration > 0) {
+          const currentTime = arAnimationActions[0].time % arAnimationDuration;
+          const progress = (currentTime / arAnimationDuration) * 100;
+          arProgressSlider.value = progress;
+        }
+        
+        arRafId = requestAnimationFrame(updateARAnimation);
+      }
+      
+      arRafId = requestAnimationFrame(updateARAnimation);
+    }
+    
+    /**
+     * توقف حلقه انیمیشن AR
+     */
+    function stopARAnimationLoop() {
+      cancelAnimationFrame(arRafId);
+    }
+    
+    /**
+     * تنظیم کنترل‌های AR
+     */
+    function setupARControls() {
+      // کنترل پلی/پاز
+      arPlayPauseBtn.addEventListener('click', () => {
+        if (arAnimationActions.length === 0) return;
+        
+        if (isARPlaying) {
+          arAnimationActions.forEach(action => action.paused = true);
+          arPlayPauseBtn.textContent = '▶️';
+          isARPlaying = false;
+        } else {
+          arAnimationActions.forEach(action => action.paused = false);
+          arPlayPauseBtn.textContent = '⏸️';
+          isARPlaying = true;
+        }
+      });
+      
+      // کنترل اسلایدر پیشرفت
+      arProgressSlider.addEventListener('input', () => {
+        if (arAnimationActions.length === 0) return;
+        
+        const progress = arProgressSlider.value / 100;
+        const newTime = progress * arAnimationDuration;
+        
+        arAnimationActions.forEach(action => {
+          action.time = newTime;
+          if (action.paused) {
+            action.paused = false;
+            setTimeout(() => {
+              action.paused = true;
+            }, 0);
+          }
+        });
+      });
+    }
+    
+    /**
+     * محاسبه مقیاس مدل برای AR
+     * @param {Object} object3D - مدل سه‌بعدی
+     * @return {Object} مقیاس مناسب برای مدل
+     */
+    function calculateScaleAR(object3D) {
+      const manualScale = urlParams.get('scale');
+      if (manualScale) {
+        const scaleValue = parseFloat(manualScale);
+        if (!isNaN(scaleValue)) {
+          return {x: scaleValue, y: scaleValue, z: scaleValue};
+        }
+      }
+      
+      const bbox = new THREE.Box3().setFromObject(object3D);
+      const size = bbox.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const targetSize = 0.15;
+      const scale = 10 * targetSize / maxDim;
+      return {x: scale, y: scale, z: scale};
+    }
+    
+    /**
+     * تنظیم رویدادهای هدف‌گیری AR
+     */
+    function setupARTargetEvents() {
+      document.querySelectorAll('#arScene [mindar-image-target]').forEach((target, index) => {
+        target.addEventListener('targetFound', () => {
+          modelEntitiesAR.forEach(m => m.setAttribute('visible', 'false'));
+          const model = target.querySelector('.model-entity');
+          if (model) {
+            model.setAttribute('visible', 'true');
+          }
+        });
+        target.addEventListener('targetLost', () => {
+          const model = target.querySelector('.model-entity');
+          if (model) model.setAttribute('visible', 'false');
+        });
+      });
+    }
+    
+    /**
+     * به‌روزرسانی پیشرفت بارگذاری AR
+     * @param {number} percent - درصد پیشرفت
+     */
+    function updateARProgress(percent) {
+      arProgress.style.width = percent + '%';
+      arLoadingText.textContent = `در حال بارگذاری منابع (${percent}%)`;
+      if (percent >= 100) {
+        setTimeout(() => {
+          arLoader.style.display = 'none';
+        }, 500);
+      }
+    }
+    
+    /**
+     * شبیه‌سازی بارگذاری AR
+     */
+    function simulateARLoading() {
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 5;
+        updateARProgress(progress);
+        if (progress >= 90 || isModelLoadedInAR) {
+          clearInterval(interval);
+          if (!isModelLoadedInAR) {
+            setTimeout(() => {
+              if (!isModelLoadedInAR) updateARProgress(100);
+            }, 2000);
+          }
+        }
+      }, 100);
+    }
+    
+    /**
+     * نمایش/پنهان کردن نمایشگر AR
+     */
+    function toggleARView() {
+      if (isARActive) {
+        closeARView();
+      } else {
+        openARView();
+      }
+    }
+    
+    /**
+     * باز کردن نمایشگر AR
+     */
+    async function openARView() {
+      try {
+        isARActive = true;
+        arViewer.style.display = 'block';
+        arLoader.style.display = 'flex';
+        arErrorMessage.style.display = 'none';
+        arLoadingText.textContent = 'در حال راه‌اندازی AR...';
+        
+        const mindarSystem = arScene.systems['mindar-image-system'];
+        await mindarSystem.start();
+        
+        setupARTargetEvents();
+        arLoader.style.display = 'none';
+        arScene.querySelector('a-camera').setAttribute('look-controls', 'enabled: true');
+        
+        // اگر در حالت تمام‌صفحه هستیم، دوباره درخواست تمام‌صفحه بدهیم
+        if (document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.log("خطا در ورود به حالت تمام‌صفحه:", err);
+          });
+        }
+      } catch (err) {
+        console.error('خطا در شروع AR:', err);
+        arErrorMessage.textContent = 'خطا در شروع AR. لطفاً دوباره امتحان کنید.';
+        arErrorMessage.style.display = 'block';
+        arLoadingText.textContent = 'خطا در راه‌اندازی';
+      }
+    }
+    
+    /**
+     * بستن نمایشگر AR
+     */
+    function closeARView() {
+      const mindarSystem = arScene.systems['mindar-image-system'];
+      if (mindarSystem) {
+        mindarSystem.stop();
+      }
+      
+      // توقف انیمیشن‌های AR
+      stopARAnimationLoop();
+      
+      arViewer.style.display = 'none';
+      isARActive = false;
+      
+      // اگر در حالت تمام‌صفحه هستیم، از آن خارج شویم
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    }
+
+    // رویدادهای تغییر حالت پس‌زمینه
+    document.getElementById('bgModeDefault').addEventListener('change', () => {
+      if (document.getElementById('bgModeDefault').checked) {
+        changeBackgroundMode('default');
+      }
+    });
+
+    document.getElementById('bgModeGlobal').addEventListener('change', () => {
+      if (document.getElementById('bgModeGlobal').checked) {
+        changeBackgroundMode('global');
+      }
+    });
+
+    document.getElementById('bgModeCustom').addEventListener('change', () => {
+      if (document.getElementById('bgModeCustom').checked) {
+        changeBackgroundMode('custom');
+      }
+    });
+
+    // رویدادهای اولیه
+    window.addEventListener('load', () => {
+      loadBackgroundSettings();
+      
+      hideTimeout = setTimeout(() => {
+        controls.classList.add('hidden');
+        if (hasAnimations) {
+          slider.classList.add('hidden');
+        }
+      }, 3000);
+    });
+
+    // نمایش کنترل‌ها هنگام تعامل
+    container.addEventListener('mousemove', showControls);
+    container.addEventListener('touchmove', showControls);
+    viewer.addEventListener('click', showControls);
   </script>
 </body>
 </html>
