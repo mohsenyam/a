@@ -3,30 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="webgl" content="true">
+  <meta name="hardware-accelerated" content="true">
   <title>نمایشگر مدل سه‌بعدی و واقعیت افزوده</title>
 
   <!-- کتابخانه‌های اصلی -->
-  <script type="module" src="model-viewer.min.js"></script>
-  <script nomodule src="model-viewer-legacy.js"></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <script nomodule src="https://unpkg.com/@google/model-viewer/dist/model-viewer-legacy.js"></script>
   
   <!-- کتابخانه‌های واقعیت افزوده -->
-  <script src="aframe.min.js"></script>
-  <script src="mindar-image-aframe.prod.js"></script>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-aframe.prod.js"></script>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
 
   <style>
+    :root {
+      --model-bg-color: #ffffff;
+      --primary-color: #007bff;
+      --text-color: #333333;
+      --border-radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       margin: 0;
       background-color: #f8f8f8;
       direction: rtl;
-      font-family: sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
-      touch-action: manipulation; /* بهبود رفتار لمسی */
+      min-height: 100vh;
+      touch-action: manipulation;
+      color: var(--text-color);
+      padding: 10px;
     }
 
     .container {
@@ -34,16 +51,22 @@
       max-width: 854px;
       aspect-ratio: 854 / 480;
       position: relative;
-      -webkit-tap-highlight-color: transparent; /* حذف هایلایت لمسی در موبایل */
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      background: white;
     }
 
     model-viewer {
       width: 100%;
       height: 100%;
-      background-color: var(--model-bg-color, #fff);
-      border-radius: 8px;
+      background-color: var(--model-bg-color);
+      border-radius: var(--border-radius);
       transition: background-color 0.3s ease;
-      touch-action: pan-x pan-y; /* بهبود حرکات لمسی */
+      touch-action: pan-x pan-y;
+      --poster-color: transparent;
+      --progress-bar-color: transparent;
     }
 
     #progress-slider {
@@ -54,10 +77,10 @@
       margin: 0 20px;
       height: 6px;
       appearance: none;
-      background: #ccc;
+      background: rgba(204, 204, 204, 0.7);
       border-radius: 4px;
       z-index: 9;
-      accent-color: #007bff;
+      accent-color: var(--primary-color);
       direction: ltr;
       transition: opacity 0.5s ease;
       opacity: 1;
@@ -66,6 +89,16 @@
     #progress-slider.hidden {
       opacity: 0;
       pointer-events: none;
+    }
+
+    #progress-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
     .control-buttons {
@@ -78,6 +111,10 @@
       z-index: 10;
       transition: opacity 0.5s ease;
       opacity: 1;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 30px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .control-buttons.hidden {
@@ -99,25 +136,34 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: background-color 0.3s, box-shadow 0.3s;
-      -webkit-tap-highlight-color: transparent; /* حذف هایلایت لمسی */
+      transition: all 0.3s;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .icon-button:hover {
       background-color: rgba(0, 123, 255, 0.1);
-      box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .icon-button:active {
+      transform: translateY(0);
     }
 
     .icon-button svg {
       width: 24px;
       height: 24px;
-      fill: #ccc;
+      fill: #666;
+      transition: fill 0.3s;
+    }
+
+    .icon-button:hover svg {
+      fill: var(--primary-color);
     }
 
     .overlay {
       position: absolute;
       inset: 0;
-      background-color: rgba(0, 0, 0, 0.7);
+      background-color: rgba(0, 0, 0, 0.85);
       color: #fff;
       display: none;
       flex-direction: column;
@@ -127,9 +173,9 @@
       font-size: 18px;
       text-align: right;
       z-index: 20;
-      border-radius: 8px;
+      border-radius: var(--border-radius);
       overflow-y: auto;
-      overscroll-behavior: contain; /* جلوگیری از اسکرول پس‌زمینه */
+      overscroll-behavior: contain;
     }
 
     .overlay h2 {
@@ -137,6 +183,7 @@
       text-align: center;
       margin-bottom: 20px;
       font-size: 24px;
+      color: #fff;
     }
 
     .overlay p {
@@ -164,7 +211,8 @@
       color: white;
       font-size: 26px;
       cursor: pointer;
-      padding: 10px; /* افزایش ناحیه کلیک برای موبایل */
+      padding: 10px;
+      z-index: 21;
     }
 
     #loader {
@@ -180,14 +228,14 @@
       z-index: 100;
       flex-direction: column;
       gap: 16px;
-      border-radius: 8px;
+      border-radius: var(--border-radius);
     }
 
     .loader-spinner {
       width: 40px;
       height: 40px;
       border: 4px solid #f3f3f3;
-      border-top: 4px solid #007bff;
+      border-top: 4px solid var(--primary-color);
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
@@ -217,7 +265,7 @@
     }
 
     #backgroundPanel button:not(.close-button) {
-      background: #007bff;
+      background: var(--primary-color);
       color: white;
       border: none;
       padding: 8px 16px;
@@ -225,7 +273,7 @@
       cursor: pointer;
       transition: background-color 0.3s;
       margin-top: 10px;
-      min-width: 120px; /* حداقل عرض برای دکمه‌های موبایل */
+      min-width: 120px;
     }
 
     #backgroundPanel button:not(.close-button):hover {
@@ -349,7 +397,7 @@
       width: 50px;
       height: 50px;
       border: 5px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #007bff;
+      border-top-color: var(--primary-color);
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin-bottom: 20px;
@@ -368,7 +416,7 @@
     #arProgress {
       height: 100%;
       width: 0%;
-      background: #007bff;
+      background: var(--primary-color);
       transition: width 0.3s ease;
     }
 
@@ -385,7 +433,7 @@
       right: 20px;
       width: 40px;
       height: 40px;
-      background: #007bff;
+      background: var(--primary-color);
       color: white;
       border: none;
       border-radius: 50%;
@@ -455,7 +503,7 @@
       width: 16px;
       height: 16px;
       border-radius: 50%;
-      background: #007bff;
+      background: var(--primary-color);
       cursor: pointer;
     }
 
@@ -464,6 +512,7 @@
       100% { transform: rotate(360deg); }
     }
 
+    /* بهبودهای ظاهری برای موبایل */
     @media (max-width: 600px) {
       body {
         height: auto;
@@ -489,6 +538,7 @@
       .control-buttons {
         bottom: 10px;
         gap: 8px;
+        padding: 8px;
       }
       
       .icon-button {
@@ -522,14 +572,37 @@
         width: 150px;
       }
     }
+
+    /* بهبودهای ظاهری برای دسکتاپ */
+    @media (min-width: 1024px) {
+      .container {
+        max-width: 900px;
+      }
+    }
+
+    /* حالت تاریک */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --model-bg-color: #2c2c2c;
+        --text-color: #f0f0f0;
+      }
+      
+      body {
+        background-color: #1a1a1a;
+      }
+      
+      .container {
+        background: #2a2a2a;
+      }
+    }
   </style>
 </head>
 <body>
 
   <div class="container" id="model-container">
     <div id="loader">
-<!--       <div class="loader-spinner"></div> -->
-<!--       <p>در حال بارگذاری مدل...</p> -->
+      <div class="loader-spinner"></div>
+      <p>در حال بارگذاری مدل...</p>
     </div>
 
     <model-viewer 
@@ -537,10 +610,15 @@
       alt="مدل سه‌بعدی"
       auto-rotate 
       camera-controls
-      shadow-intensity="1"
-      exposure="1"
+      shadow-intensity="0"
+      environment-image="neutral"
+      exposure="1.2"
       autoplay
-      interaction-prompt="none" <!-- غیرفعال کردن prompt تعاملی برای موبایل -->
+      interaction-prompt="none"
+      preload
+      reveal="auto"
+      loading="eager"
+      render-mode="auto"
     >
     </model-viewer>
 
@@ -704,7 +782,7 @@
       
       <div class="share-option" onclick="copyToClipboard('shareEmbed')">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M8.5 15H10V9H7v1.5h1.5zM13.5 12.75L15.25 15H18l-2.25-3L18 9h-2.75l-1.75 2.25V9H11v6h1.5z"/></svg>
-        کپی کد embed
+        کپی کд embed
       </div>
       
       <div id="copyMessage" class="copy-message">متن با موفقیت کپی شد!</div>
@@ -797,8 +875,38 @@
       return glbPath.replace('.glb', '.usdz');
     }
 
+    /**
+     * بررسی پشتیبانی WebGL
+     * @return {boolean} وضعیت پشتیبانی از WebGL
+     */
+    function checkWebGLSupport() {
+      try {
+        const canvas = document.createElement('canvas');
+        return !!(
+          window.WebGLRenderingContext &&
+          (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+        );
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /**
+     * بررسی دستگاه اندروید
+     * @return {boolean} وضعیت دستگاه اندروید
+     */
+    function isAndroidDevice() {
+      return /Android/i.test(navigator.userAgent);
+    }
+
     // بارگذاری مدل و اعمال تنظیمات
     document.addEventListener('DOMContentLoaded', () => {
+      // بررسی پشتیبانی WebGL
+      if (!checkWebGLSupport()) {
+        alert('مرورگر شما از WebGL پشتیبانی نمی‌کند. لطفاً از مرورگرهای جدید مانند Chrome یا Firefox استفاده کنید.');
+        return;
+      }
+
       const viewer = document.getElementById('viewer');
       const usdzFile = getUsdzPath(modelFile);
       
@@ -809,6 +917,13 @@
       // اعمال رنگ پس‌زمینه پیش‌فرض
       document.documentElement.style.setProperty('--model-bg-color', defaultBgColor);
       viewer.style.backgroundColor = defaultBgColor;
+      
+      // بهینه‌سازی برای دستگاه‌های اندروید
+      if (isAndroidDevice()) {
+        viewer.setAttribute('shadow-intensity', '0');
+        viewer.setAttribute('environment-image', 'neutral');
+        viewer.setAttribute('exposure', '1.2');
+      }
       
       // ذخیره تنظیمات اولیه
       currentModelSettings = {
@@ -1609,7 +1724,7 @@
      * تنظیم رویدادهای هدف‌گیری AR
      */
     function setupARTargetEvents() {
-      document.querySelectorAll('#arScene [mindar-image-target]').forEach((target, index) => {
+      document.querySelectorAll('#arScene [mindar-image-target]').forEach((target, index) {
         target.addEventListener('targetFound', () => {
           modelEntitiesAR.forEach(m => m.setAttribute('visible', 'false'));
           const model = target.querySelector('.model-entity');
