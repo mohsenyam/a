@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>نمایش استریوسکوپی مدل سه‌بعدی شریان</title>
 
-  <!-- کتابخانه model-viewer -->
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-  <script nomodule src="https://unpkg.com/@google/model-viewer/dist/model-viewer-legacy.js"></script>
+  <!-- کتابخانه model-viewer با نسخه سازگار -->
+  <script src="https://unpkg.com/@google/model-viewer@2.1.1/dist/model-viewer.min.js"></script>
 
   <style>
     body {
@@ -31,15 +30,22 @@
 
     /* حالت استریوسکوپی (دو چشم) */
     .stereo {
+      display: -webkit-box;
+      display: -ms-flexbox;
       display: flex;
-      flex-direction: row;
+      -webkit-box-orient: horizontal;
+      -webkit-box-direction: normal;
+          -ms-flex-direction: row;
+              flex-direction: row;
       width: 100%;
       height: 100vh;
       display: none;
     }
 
     .eye {
-      flex: 1;
+      -webkit-box-flex: 1;
+          -ms-flex: 1;
+              flex: 1;
       overflow: hidden;
       position: relative;
     }
@@ -56,7 +62,11 @@
       position: absolute;
       bottom: 20px;
       left: 50%;
-      transform: translateX(-50%);
+      -webkit-transform: translateX(-50%);
+          -ms-transform: translateX(-50%);
+              transform: translateX(-50%);
+      display: -webkit-box;
+      display: -ms-flexbox;
       display: flex;
       gap: 10px;
       z-index: 10;
@@ -78,16 +88,43 @@
     /* برای نمایش در دستگاه موبایل با VR */
     @media (max-width: 768px) {
       .stereo {
-        flex-direction: column;
+        -webkit-box-orient: vertical;
+        -webkit-box-direction: normal;
+            -ms-flex-direction: column;
+                flex-direction: column;
       }
       .eye {
         width: 100%;
         height: 50vh;
       }
     }
+
+    /* پیام خطا برای دستگاه‌های بدون پشتیبانی WebGL */
+    .webgl-error {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      -webkit-transform: translate(-50%, -50%);
+          -ms-transform: translate(-50%, -50%);
+              transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 10px;
+      z-index: 100;
+    }
   </style>
 </head>
 <body>
+
+  <!-- پیام خطا برای دستگاه‌های بدون پشتیبانی WebGL -->
+  <div id="webglError" class="webgl-error">
+    <h2>پشتیبانی نشده</h2>
+    <p>متأسفانه دستگاه شما از گرافیک سه‌بعدی پشتیبانی نمی‌کند.</p>
+    <p>لطفاً از مرورگر و دستگاه جدیدتر استفاده کنید.</p>
+  </div>
 
   <!-- نمای معمولی -->
   <div id="normal" class="normal-view">
@@ -136,39 +173,56 @@
   </div>
 
   <script>
-    const normalView = document.getElementById('normal');
-    const stereoView = document.getElementById('stereo');
-    const mainViewer = document.getElementById('mainViewer');
-    const leftEyeViewer = document.getElementById('leftEye');
-    const rightEyeViewer = document.getElementById('rightEye');
+    // بررسی پشتیبانی از WebGL
+    function checkWebGLSupport() {
+      try {
+        var canvas = document.createElement('canvas');
+        return !!window.WebGLRenderingContext && 
+          (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+      } catch(e) {
+        return false;
+      }
+    }
+
+    // اگر WebGL پشتیبانی نشود، پیام خطا نشان دهید
+    if (!checkWebGLSupport()) {
+      document.getElementById('webglError').style.display = 'block';
+      document.getElementById('normal').style.display = 'none';
+    }
+
+    var normalView = document.getElementById('normal');
+    var stereoView = document.getElementById('stereo');
+    var mainViewer = document.getElementById('mainViewer');
+    var leftEyeViewer = document.getElementById('leftEye');
+    var rightEyeViewer = document.getElementById('rightEye');
     
-    let isStereoMode = false;
-    let cameraSyncInterval;
+    var isStereoMode = false;
+    var cameraSyncInterval;
 
     // تابع برای تجزیه رشته camera-orbit
     function parseCameraOrbit(orbitString) {
       if (!orbitString) return { theta: 0, phi: 75, radius: 2 };
       
-      const values = orbitString.split(' ');
-      const theta = parseFloat(values[0]) || 0;
-      const phi = parseFloat(values[1]) || 75;
-      const radius = parseFloat(values[2]) || 2;
+      var values = orbitString.split(' ');
+      var theta = parseFloat(values[0]) || 0;
+      var phi = parseFloat(values[1]) || 75;
+      var radius = parseFloat(values[2]) || 2;
       
-      return { theta, phi, radius };
+      return { theta: theta, phi: phi, radius: radius };
     }
 
     // تابع برای ایجاد رشته camera-orbit
     function createCameraOrbitString(theta, phi, radius) {
-      return `${theta}deg ${phi}deg ${radius}m`;
+      return theta + 'deg ' + phi + 'deg ' + radius + 'm';
     }
 
     // تنظیمات اولیه برای حالت استریو
     function setupStereoView() {
       // استفاده از ویژگی cameraOrbit به جای getAttribute
-      const orbit = mainViewer.cameraOrbit || '0deg 75deg 2m';
-      const target = mainViewer.cameraTarget || '0m 0m 0m';
+      var orbit = mainViewer.cameraOrbit || '0deg 75deg 2m';
+      var target = mainViewer.cameraTarget || '0m 0m 0m';
       
-      const orbitData = parseCameraOrbit(orbit);
+      var orbitData = parseCameraOrbit(orbit);
       
       // تنظیم دوربین برای چشم چپ با کمی جابجایی به راست
       leftEyeViewer.cameraOrbit = orbit;
@@ -181,6 +235,12 @@
 
     // ورود به حالت استریوسکوپی
     function enterStereo() {
+      // بررسی مجدد WebGL قبل از ورود به حالت استریو
+      if (!checkWebGLSupport()) {
+        alert('دستگاه شما از گرافیک سه‌بعدی پشتیبانی نمی‌کند. امکان نمایش استریوسکوپی وجود ندارد.');
+        return;
+      }
+      
       setupStereoView();
       normalView.style.display = 'none';
       stereoView.style.display = 'flex';
@@ -205,21 +265,21 @@
 
     // همگام‌سازی دوربین‌ها در حالت استریو
     function startCameraSync() {
-      cameraSyncInterval = setInterval(() => {
+      cameraSyncInterval = setInterval(function() {
         if (!isStereoMode) return;
         
         // گرفتن موقعیت فعلی دوربین اصلی
-        const orbit = mainViewer.cameraOrbit;
-        const target = mainViewer.cameraTarget || '0m 0m 0m';
+        var orbit = mainViewer.cameraOrbit;
+        var target = mainViewer.cameraTarget || '0m 0m 0m';
         
         // تجزیه موقعیت دوربین
-        const orbitData = parseCameraOrbit(orbit);
+        var orbitData = parseCameraOrbit(orbit);
         
         // ایجاد افست برای ایجاد اثر استریو (IPD - فاصله بین مردمکی)
-        const ipdOffset = 0.5; // میزان افست به درجه
+        var ipdOffset = 0.5; // میزان افست به درجه
         
         // تنظیم دوربین برای چشم چپ
-        const leftOrbit = createCameraOrbitString(
+        var leftOrbit = createCameraOrbitString(
           orbitData.theta - ipdOffset,
           orbitData.phi,
           orbitData.radius
@@ -228,7 +288,7 @@
         leftEyeViewer.cameraTarget = target;
         
         // تنظیم دوربین برای چشم راست
-        const rightOrbit = createCameraOrbitString(
+        var rightOrbit = createCameraOrbitString(
           orbitData.theta + ipdOffset,
           orbitData.phi,
           orbitData.radius
@@ -239,9 +299,9 @@
     }
 
     // بارگذاری اولیه
-    window.addEventListener('load', () => {
+    window.addEventListener('load', function() {
       // اضافه کردن event listener برای تغییرات دوربین
-      mainViewer.addEventListener('camera-change', () => {
+      mainViewer.addEventListener('camera-change', function() {
         if (isStereoMode) {
           // اگر در حالت استریو هستیم، دوربین‌ها را به روز کنیم
           startCameraSync();
