@@ -1,138 +1,164 @@
 <!DOCTYPE html>
 <html lang="fa">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>مشاهده استریوسکوپی مدل — Cardboard VR</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>استریوسکوپی مدل سه‌بعدی</title>
 
-  <!-- A-Frame (شامل دکمه VR پیش‌فرض) -->
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <!-- کتابخانه model-viewer -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <script nomodule src="https://unpkg.com/@google/model-viewer/dist/model-viewer-legacy.js"></script>
 
   <style>
-    html, body { height:100%; margin:0; background:#000; font-family: sans-serif; }
-    #wrap { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; }
-    /* دکمه‌های روی صفحه */
-    .ui {
-      position: absolute;
-      z-index: 1000;
-      right: 12px;
-      bottom: 12px;
-      display:flex;
-      gap:10px;
-      flex-direction: column;
-      align-items: flex-end;
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: sans-serif;
     }
+
+    .normal-view {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+
+    /* حالت استریوسکوپی (دو چشم) */
+    .stereo {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      height: 100vh;
+    }
+
+    .eye {
+      flex: 1;
+      border: 1px solid #111;
+      overflow: hidden;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+    }
+
     .btn {
-      background: rgba(255,255,255,0.12);
-      color:#fff;
-      padding:10px 14px;
-      border-radius:10px;
-      border: none;
-      backdrop-filter: blur(6px);
-      font-size:14px;
-      cursor:pointer;
-    }
-    .btn:active { transform: scale(0.98); }
-    .note {
-      position: absolute;
-      left: 12px;
-      bottom: 12px;
+      background: rgba(255, 255, 255, 0.2);
       color: #fff;
-      font-size: 13px;
-      background: rgba(0,0,0,0.4);
-      padding: 8px 12px;
+      border: none;
+      padding: 10px 20px;
       border-radius: 8px;
-      max-width: 60%;
+      cursor: pointer;
+      font-size: 14px;
     }
-    /* پنهان کردن نوار A-Frame پیش‌فرض در حالت دسکتاپ (اختیاری) */
-    .a-enter-vr-button { /* keep default */ }
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
   </style>
 </head>
 <body>
-  <div id="wrap">
-    <!-- صحنه A-Frame -->
-    <a-scene
-      id="scene"
-      vr-mode-ui="enabled: true"
-      renderer="antialias: true; physicallyCorrectLights: true;"
-      background="color: #111"
-      embedded
-    >
-      <!-- نورها -->
-      <a-entity light="type: ambient; color: #ffffff; intensity: 0.6"></a-entity>
-      <a-entity light="type: directional; color: #ffffff; intensity: 0.9" position="1 2 2"></a-entity>
 
-      <!-- زمین برای داشتن مرجع قابل دید -->
-      <a-entity geometry="primitive: plane; width: 10; height: 10" material="color: #262626; opacity: 0.6" rotation="-90 0 0" position="0 0 0"></a-entity>
+  <!-- نمای معمولی -->
+  <div id="normal" class="normal-view">
+    <model-viewer id="mainViewer"
+      src="cross_section_of_artery_1.glb"
+      alt="مدل سه‌بعدی"
+      camera-controls
+      auto-rotate
+      shadow-intensity="1"
+      style="width:100%; height:100%;"
+    ></model-viewer>
 
-      <!-- مدل GLB شما (از همان پوشه صفحه) -->
-      <a-entity id="modelRoot"
-        gltf-model="url(cross_section_of_artery_1.glb)"
-        position="0 1.4 -1.8"
-        rotation="0 45 0"
-        scale="0.9 0.9 0.9"
-        animation="property: rotation; to: 0 405 0; loop: true; dur: 16000; easing: linear"
-      ></a-entity>
+    <div class="controls">
+      <button class="btn" onclick="enterStereo()">👓 حالت VR (Cardboard)</button>
+    </div>
+  </div>
 
-      <!-- دوربین اصلی (کشیدن/حرکت غیرفعال برای تجربه VR ساده) -->
-      <a-entity id="camRig">
-        <a-camera id="camera" position="0 1.6 0"></a-camera>
-      </a-entity>
-    </a-scene>
-
-    <!-- کنترل‌های UI (دکمه اختصاصی برای ورود به حالت VR/کاردبورد) -->
-    <div class="ui">
-      <button class="btn" id="enterVrBtn">⎆ ورود به حالت VR (Cardboard)</button>
-      <button class="btn" id="resetBtn">↺ بازنشانی مدل</button>
+  <!-- نمای استریوسکوپی -->
+  <div id="stereo" class="stereo" style="display:none;">
+    <div class="eye">
+      <model-viewer id="leftEye"
+        src="cross_section_of_artery_1.glb"
+        camera-controls
+        shadow-intensity="1"
+        style="width:100%; height:100%;"
+      ></model-viewer>
+    </div>
+    <div class="eye">
+      <model-viewer id="rightEye"
+        src="cross_section_of_artery_1.glb"
+        camera-controls
+        shadow-intensity="1"
+        style="width:100%; height:100%;"
+      ></model-viewer>
     </div>
 
-    <div class="note">
-      راهنما: در موبایل Chrome روی <b>ورود به حالت VR</b> بزنید، سپس تلفن را در هدست Cardboard قرار دهید.
+    <div class="controls">
+      <button class="btn" onclick="exitStereo()">✖ خروج از VR</button>
     </div>
   </div>
 
   <script>
-    const scene = document.querySelector('a-scene');
-    const enterVrBtn = document.getElementById('enterVrBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const model = document.getElementById('modelRoot');
+    const normalView = document.getElementById('normal');
+    const stereoView = document.getElementById('stereo');
+    const mainViewer = document.getElementById('mainViewer');
+    const leftEye = document.getElementById('leftEye');
+    const rightEye = document.getElementById('rightEye');
 
-    // هنگامی که صحنه بارگذاری شد
-    scene.addEventListener('loaded', () => {
-      console.log('A-Frame scene loaded');
-    });
+    // ورود به حالت استریوسکوپی
+    function enterStereo() {
+      // همگام‌سازی دوربین‌ها با مدل اصلی
+      const orbit = mainViewer.getAttribute('camera-orbit');
+      const fov = mainViewer.getAttribute('field-of-view');
 
-    // تابع ورود به VR — A-Frame متد enterVR را فراهم می‌کند
-    enterVrBtn.addEventListener('click', async () => {
-      // اگر صحنه از قبل در VR باشد، خروج
-      if (scene.is('vr-mode')) {
-        scene.exitVR();
-        return;
+      leftEye.setAttribute('camera-orbit', orbit);
+      leftEye.setAttribute('field-of-view', fov);
+
+      rightEye.setAttribute('camera-orbit', orbit);
+      rightEye.setAttribute('field-of-view', fov);
+
+      normalView.style.display = 'none';
+      stereoView.style.display = 'flex';
+
+      // شروع sync مداوم
+      syncCameras();
+    }
+
+    // خروج از حالت استریوسکوپی
+    function exitStereo() {
+      stereoView.style.display = 'none';
+      normalView.style.display = 'block';
+    }
+
+    // همگام‌سازی دوربین چپ و راست با حرکت کاربر
+    function syncCameras() {
+      if (stereoView.style.display === 'flex') {
+        const orbit = mainViewer.getAttribute('camera-orbit');
+        const fov = mainViewer.getAttribute('field-of-view');
+
+        // کمی اختلاف افقی (parallax) برای استریو
+        leftEye.setAttribute('camera-orbit', orbit.replace(/(\d+deg) (\d+deg) ([^ ]+)/,
+          (m, a, b, c) => `${a} ${b} ${c}`));
+        rightEye.setAttribute('camera-orbit', orbit.replace(/(\d+deg) (\d+deg) ([^ ]+)/,
+          (m, a, b, c) => `${parseFloat(a) + 3}deg ${b} ${c}`));
+
+        leftEye.setAttribute('field-of-view', fov);
+        rightEye.setAttribute('field-of-view', fov);
+
+        requestAnimationFrame(syncCameras);
       }
-      try {
-        // A-Frame: روش استاندارد برای ورود به VR
-        await scene.enterVR();
-        // پس از ورود به VR، مرورگر موبایل معمولاً حالت استریو را برای Cardboard می‌سازد
-      } catch (err) {
-        console.warn('ورود به حالت VR موفق نبود:', err);
-        alert('ورود به VR پشتیبانی نمی‌شود یا نیاز به HTTPS و مرورگر سازگار است.');
-      }
-    });
-
-    // بازنشانی وضعیت مدل (موقعیت/چرخش/مقیاس به مقدار اولیه)
-    resetBtn.addEventListener('click', () => {
-      model.setAttribute('position', '0 1.4 -1.8');
-      model.setAttribute('rotation', '0 45 0');
-      model.setAttribute('scale', '0.9 0.9 0.9');
-    });
-
-    // وقتی مدل بارگذاری شد، می‌توانیم پیام در کنسول یا متنی نمایش دهیم
-    model.addEventListener('model-loaded', () => {
-      console.log('Model loaded');
-    });
-
-    // یک fallback برای نمایش split-screen دستی در دستگاه‌هایی که WebXR VR پشتیبانی نمیکنند:
-    // (در صورت تمایل می‌توان اینجا حالت سفارشی split-screen ساخت — در اکثر موارد A-Frame خودش مدیریت می‌کند)
+    }
   </script>
 </body>
 </html>
