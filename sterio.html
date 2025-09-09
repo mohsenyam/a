@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>نمایش استریوسکوپی مدل سه‌بعدی شریان</title>
+  <title>نمایش استریوسکوپی شریان با ژیروسکوپ</title>
 
   <!-- بارگذاری Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -11,364 +11,138 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <!-- بارگذاری OrbitControls -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- بارگذاری DeviceOrientationControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DeviceOrientationControls.js"></script>
 
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      overflow: hidden;
-      font-family: tahoma, sans-serif;
-    }
-
-    .container {
-      width: 100%;
-      height: 100vh;
-      position: relative;
-    }
-
-    .stereo-container {
-      display: none;
-      width: 100%;
-      height: 100vh;
-    }
-
-    .canvas-container {
-      width: 50%;
-      height: 100%;
-      float: right;
-      position: relative;
-    }
-
-    .canvas-left {
-      border-left: 2px solid #333;
-    }
-
-    .canvas-right {
-      border-right: 2px solid #333;
-    }
-
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
+    body { margin: 0; background: #000; overflow: hidden; }
+    .container { width: 100%; height: 100vh; position: relative; }
+    .stereo-container { display: none; width: 100%; height: 100vh; }
+    .canvas-container { width: 50%; height: 100%; float: right; }
+    canvas { width: 100%; height: 100%; display: block; }
     .controls {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 100;
-      display: flex;
-      gap: 10px;
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 100;
     }
-
     .btn {
-      background: rgba(255, 255, 255, 0.3);
-      color: #fff;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 16px;
-      font-family: tahoma;
-    }
-
-    .btn:hover {
-      background: rgba(255, 255, 255, 0.5);
-    }
-
-    .loading {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      text-align: center;
-      font-size: 18px;
-    }
-
-    .error-message {
-      display: none;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      text-align: center;
-      background: rgba(0, 0, 0, 0.8);
-      padding: 30px;
-      border-radius: 10px;
-      max-width: 80%;
+      background: rgba(255,255,255,0.3); color: #fff; border: none;
+      padding: 12px 24px; border-radius: 8px; cursor: pointer;
     }
   </style>
 </head>
 <body>
 
-  <div id="loading" class="loading">
-    <h2>در حال بارگذاری مدل...</h2>
-    <p>لطفاً منتظر بمانید</p>
-  </div>
-
-  <div id="errorMessage" class="error-message">
-    <h2>خطا در بارگذاری</h2>
-    <p id="errorText">متأسفانه مشکلی در بارگذاری مدل به وجود آمده است.</p>
-    <button class="btn" onclick="location.reload()">تلاش مجدد</button>
-  </div>
-
   <!-- نمایش معمولی -->
   <div id="normalView" class="container">
-    <div id="mainCanvasContainer" class="canvas-container" style="width:100%">
-      <canvas id="mainCanvas"></canvas>
-    </div>
+    <canvas id="mainCanvas"></canvas>
     <div class="controls">
-      <button class="btn" onclick="enterStereoMode()">👓 حالت استریوسکوپی</button>
+      <button class="btn" onclick="enterStereoMode()">👓 حالت استریو</button>
     </div>
   </div>
 
   <!-- نمایش استریوسکوپی -->
   <div id="stereoView" class="stereo-container">
-    <div id="leftCanvasContainer" class="canvas-container canvas-left">
-      <canvas id="leftCanvas"></canvas>
-    </div>
-    <div id="rightCanvasContainer" class="canvas-container canvas-right">
-      <canvas id="rightCanvas"></canvas>
-    </div>
+    <div class="canvas-container"><canvas id="leftCanvas"></canvas></div>
+    <div class="canvas-container"><canvas id="rightCanvas"></canvas></div>
     <div class="controls">
-      <button class="btn" onclick="exitStereoMode()">✖ خروج از حالت استریو</button>
+      <button class="btn" onclick="exitStereoMode()">✖ خروج</button>
     </div>
   </div>
 
   <script>
-    // متغیرهای全局
-    var scene, camera, renderer, controls, model;
-    var leftScene, leftCamera, leftRenderer, leftControls;
-    var rightScene, rightCamera, rightRenderer, rightControls;
-    var isStereoMode = false;
-    
-    // تنظیمات
-    var IPD = 0.5; // فاصله بین دو چشم (Interpupillary distance)
-    var modelFile = 'cross_section_of_artery_1.glb';
+    let scene, camera, renderer, controls, model;
+    let leftScene, leftCamera, leftRenderer, rightScene, rightCamera, rightRenderer;
+    let leftControls, rightControls;
+    let isStereoMode = false;
+    const IPD = 0.5; // فاصله دو چشم
+    const modelFile = "cross_section_of_artery_1.glb";
 
-    // بررسی پشتیبانی از WebGL
-    function checkWebGLSupport() {
-      try {
-        var canvas = document.createElement('canvas');
-        return !!window.WebGLRenderingContext && 
-          (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
-      } catch(e) {
-        return false;
-      }
-    }
-
-    // مقداردهی اولیه
     function init() {
-      // بررسی پشتیبانی از WebGL
-      if (!checkWebGLSupport()) {
-        showError('مرورگر شما از WebGL پشتیبانی نمی‌کند. لطفاً از مرورگر جدیدتر استفاده کنید.');
-        return;
-      }
-
-      // ایجاد صحنه اصلی
-      initMainScene();
-      
-      // بارگذاری مدل
-      loadModel();
-    }
-
-    // ایجاد صحنه اصلی
-    function initMainScene() {
-      // صحنه
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x000000);
-      
-      // دوربین
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 0, 5);
-      
-      // رندرر
-      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('mainCanvas'), antialias: true });
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera.position.set(0,0,5);
+
+      renderer = new THREE.WebGLRenderer({canvas: document.getElementById("mainCanvas"), antialias:true});
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
-      
-      // کنترل‌ها
+
       controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.25;
-      
-      // نورپردازی
-      var ambientLight = new THREE.AmbientLight(0x404040, 2);
-      scene.add(ambientLight);
-      
-      var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-      directionalLight.position.set(1, 1, 1);
-      scene.add(directionalLight);
+
+      // نور
+      scene.add(new THREE.AmbientLight(0x404040, 2));
+      let dirLight = new THREE.DirectionalLight(0xffffff, 1);
+      dirLight.position.set(1,1,1);
+      scene.add(dirLight);
+
+      // بارگذاری مدل
+      new THREE.GLTFLoader().load(modelFile, gltf=>{
+        model = gltf.scene;
+        scene.add(model);
+      });
+
+      animate();
     }
 
-    // ایجاد صحنه‌های استریو
     function initStereoScenes() {
-      // صحنه چپ
       leftScene = new THREE.Scene();
-      leftScene.background = new THREE.Color(0x000000);
-      leftScene.add(model.clone());
-      
-      // دوربین چپ
-      leftCamera = new THREE.PerspectiveCamera(75, window.innerWidth / 2 / window.innerHeight, 0.1, 1000);
-      leftCamera.position.copy(camera.position);
-      leftCamera.position.x -= IPD / 2;
-      
-      // رندرر چپ
-      leftRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('leftCanvas'), antialias: true });
-      leftRenderer.setSize(window.innerWidth / 2, window.innerHeight);
-      leftRenderer.setPixelRatio(window.devicePixelRatio);
-      
-      // کنترل‌های چپ
-      leftControls = new THREE.OrbitControls(leftCamera, leftRenderer.domElement);
-      leftControls.enableDamping = true;
-      leftControls.dampingFactor = 0.25;
-      
-      // صحنه راست
       rightScene = new THREE.Scene();
-      rightScene.background = new THREE.Color(0x000000);
+
+      // مدل کپی
+      leftScene.add(model.clone());
       rightScene.add(model.clone());
-      
-      // دوربین راست
-      rightCamera = new THREE.PerspectiveCamera(75, window.innerWidth / 2 / window.innerHeight, 0.1, 1000);
-      rightCamera.position.copy(camera.position);
-      rightCamera.position.x += IPD / 2;
-      
-      // رندرر راست
-      rightRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('rightCanvas'), antialias: true });
-      rightRenderer.setSize(window.innerWidth / 2, window.innerHeight);
-      rightRenderer.setPixelRatio(window.devicePixelRatio);
-      
-      // کنترل‌های راست
-      rightControls = new THREE.OrbitControls(rightCamera, rightRenderer.domElement);
-      rightControls.enableDamping = true;
-      rightControls.dampingFactor = 0.25;
-      
-      // نورپردازی برای صحنه‌های استریو
-      var ambientLight = new THREE.AmbientLight(0x404040, 2);
-      leftScene.add(ambientLight.clone());
-      rightScene.add(ambientLight.clone());
-      
-      var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-      directionalLight.position.set(1, 1, 1);
-      leftScene.add(directionalLight.clone());
-      rightScene.add(directionalLight.clone());
+
+      // دوربین‌ها
+      leftCamera = new THREE.PerspectiveCamera(75, window.innerWidth/2/window.innerHeight, 0.1, 1000);
+      leftCamera.position.set(0,0,5 - IPD/2);
+
+      rightCamera = new THREE.PerspectiveCamera(75, window.innerWidth/2/window.innerHeight, 0.1, 1000);
+      rightCamera.position.set(0,0,5 + IPD/2);
+
+      // رندررها
+      leftRenderer = new THREE.WebGLRenderer({canvas: document.getElementById("leftCanvas"), antialias:true});
+      leftRenderer.setSize(window.innerWidth/2, window.innerHeight);
+
+      rightRenderer = new THREE.WebGLRenderer({canvas: document.getElementById("rightCanvas"), antialias:true});
+      rightRenderer.setSize(window.innerWidth/2, window.innerHeight);
+
+      // کنترل‌های ژیروسکوپی
+      leftControls = new THREE.DeviceOrientationControls(leftCamera);
+      rightControls = new THREE.DeviceOrientationControls(rightCamera);
+
+      // نور
+      leftScene.add(new THREE.AmbientLight(0x404040,2));
+      rightScene.add(new THREE.AmbientLight(0x404040,2));
     }
 
-    // بارگذاری مدل
-    function loadModel() {
-      var loader = new THREE.GLTFLoader();
-      
-      loader.load(
-        modelFile,
-        function(gltf) {
-          model = gltf.scene;
-          scene.add(model);
-          
-          // مخفی کردن loading
-          document.getElementById('loading').style.display = 'none';
-          
-          // شروع انیمیشن
-          animate();
-        },
-        function(xhr) {
-          // نمایش پیشرفت بارگذاری
-          var percent = (xhr.loaded / xhr.total * 100).toFixed(2);
-          document.getElementById('loading').innerHTML = 
-            '<h2>در حال بارگذاری مدل...</h2><p>' + percent + '% کامل شده</p>';
-        },
-        function(error) {
-          showError('خطا در بارگذاری مدل: ' + error.message);
-          console.error('Error loading model:', error);
-        }
-      );
-    }
-
-    // انیمیشن
     function animate() {
       requestAnimationFrame(animate);
-      
+
       if (isStereoMode) {
-        // رندر صحنه‌های استریو
         leftControls.update();
         rightControls.update();
-        
-        leftRenderer.render(leftScene, leftCamera);
-        rightRenderer.render(rightScene, rightCamera);
+        leftRenderer.render(leftScene,leftCamera);
+        rightRenderer.render(rightScene,rightCamera);
       } else {
-        // رندر صحنه اصلی
         controls.update();
-        renderer.render(scene, camera);
+        renderer.render(scene,camera);
       }
     }
 
-    // ورود به حالت استریو
     function enterStereoMode() {
-      if (!model) {
-        alert('لطفاً منتظر بمانید تا مدل کاملاً بارگذاری شود.');
-        return;
-      }
-      
-      // ایجاد صحنه‌های استریو
+      if (!model) { alert("مدل هنوز بارگذاری نشده"); return; }
       initStereoScenes();
-      
-      // تغییر نمایش
-      document.getElementById('normalView').style.display = 'none';
-      document.getElementById('stereoView').style.display = 'block';
-      
+      document.getElementById("normalView").style.display="none";
+      document.getElementById("stereoView").style.display="block";
       isStereoMode = true;
-      
-      // اطلاع به کاربر
-      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        alert('لطفا تلفن خود را در عینک VR قرار دهید.');
-      }
     }
 
-    // خروج از حالت استریو
     function exitStereoMode() {
-      // تغییر نمایش
-      document.getElementById('stereoView').style.display = 'none';
-      document.getElementById('normalView').style.display = 'block';
-      
+      document.getElementById("stereoView").style.display="none";
+      document.getElementById("normalView").style.display="block";
       isStereoMode = false;
-      
-      // پاک کردن صحنه‌های استریو برای آزاد کردن memory
-      if (leftRenderer) leftRenderer.dispose();
-      if (rightRenderer) rightRenderer.dispose();
-      leftScene = rightScene = null;
     }
 
-    // نمایش خطا
-    function showError(message) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('errorText').textContent = message;
-      document.getElementById('errorMessage').style.display = 'block';
-    }
-
-    // مدیریت تغییر اندازه پنجره
-    window.addEventListener('resize', function() {
-      if (!isStereoMode) {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      } else {
-        leftCamera.aspect = window.innerWidth / 2 / window.innerHeight;
-        leftCamera.updateProjectionMatrix();
-        leftRenderer.setSize(window.innerWidth / 2, window.innerHeight);
-        
-        rightCamera.aspect = window.innerWidth / 2 / window.innerHeight;
-        rightCamera.updateProjectionMatrix();
-        rightRenderer.setSize(window.innerWidth / 2, window.innerHeight);
-      }
-    });
-
-    // شروع برنامه وقتی صفحه کاملاً بارگذاری شد
-    window.addEventListener('load', init);
-
+    window.addEventListener("load", init);
   </script>
 </body>
 </html>
