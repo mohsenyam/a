@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>نمایش استریوسکوپی مدل سه‌بعدی شریان</title>
 
-  <!-- کتابخانه model-viewer با نسخه سازگار -->
-  <script src="https://unpkg.com/@google/model-viewer@2.1.1/dist/model-viewer.min.js"></script>
+  <!-- کتابخانه model-viewer با نسخه سازگار با دستگاه‌های قدیمی -->
+  <script src="https://unpkg.com/@google/model-viewer@2.1.1/dist/model-viewer-legacy.js"></script>
 
   <style>
     body {
@@ -115,9 +115,27 @@
       border-radius: 10px;
       z-index: 100;
     }
+    
+    /* پیام در حال بارگذاری */
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      -webkit-transform: translate(-50%, -50%);
+          -ms-transform: translate(-50%, -50%);
+              transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
+
+  <!-- پیام در حال بارگذاری -->
+  <div id="loading" class="loading">
+    <h2>در حال بارگذاری...</h2>
+    <p>لطفاً منتظر بمانید</p>
+  </div>
 
   <!-- پیام خطا برای دستگاه‌های بدون پشتیبانی WebGL -->
   <div id="webglError" class="webgl-error">
@@ -127,7 +145,7 @@
   </div>
 
   <!-- نمای معمولی -->
-  <div id="normal" class="normal-view">
+  <div id="normal" class="normal-view" style="display:none;">
     <model-viewer id="mainViewer"
       src="cross_section_of_artery_1.glb"
       alt="مدل سه‌بعدی مقطع شریان"
@@ -183,131 +201,166 @@
         return false;
       }
     }
-
-    // اگر WebGL پشتیبانی نشود، پیام خطا نشان دهید
-    if (!checkWebGLSupport()) {
-      document.getElementById('webglError').style.display = 'block';
-      document.getElementById('normal').style.display = 'none';
-    }
-
-    var normalView = document.getElementById('normal');
-    var stereoView = document.getElementById('stereo');
-    var mainViewer = document.getElementById('mainViewer');
-    var leftEyeViewer = document.getElementById('leftEye');
-    var rightEyeViewer = document.getElementById('rightEye');
     
-    var isStereoMode = false;
-    var cameraSyncInterval;
-
-    // تابع برای تجزیه رشته camera-orbit
-    function parseCameraOrbit(orbitString) {
-      if (!orbitString) return { theta: 0, phi: 75, radius: 2 };
-      
-      var values = orbitString.split(' ');
-      var theta = parseFloat(values[0]) || 0;
-      var phi = parseFloat(values[1]) || 75;
-      var radius = parseFloat(values[2]) || 2;
-      
-      return { theta: theta, phi: phi, radius: radius };
+    // بررسی پشتیبانی از custom elements
+    function checkCustomElementsSupport() {
+      return 'customElements' in window;
     }
 
-    // تابع برای ایجاد رشته camera-orbit
-    function createCameraOrbitString(theta, phi, radius) {
-      return theta + 'deg ' + phi + 'deg ' + radius + 'm';
-    }
-
-    // تنظیمات اولیه برای حالت استریو
-    function setupStereoView() {
-      // استفاده از ویژگی cameraOrbit به جای getAttribute
-      var orbit = mainViewer.cameraOrbit || '0deg 75deg 2m';
-      var target = mainViewer.cameraTarget || '0m 0m 0m';
+    // وقتی صفحه کاملاً بارگذاری شد
+    window.onload = function() {
+      var loadingElement = document.getElementById('loading');
+      var webglErrorElement = document.getElementById('webglError');
+      var normalView = document.getElementById('normal');
       
-      var orbitData = parseCameraOrbit(orbit);
-      
-      // تنظیم دوربین برای چشم چپ با کمی جابجایی به راست
-      leftEyeViewer.cameraOrbit = orbit;
-      leftEyeViewer.cameraTarget = target;
-      
-      // تنظیم دوربین برای چشم راست با کمی جابجایی به چپ
-      rightEyeViewer.cameraOrbit = orbit;
-      rightEyeViewer.cameraTarget = target;
-    }
-
-    // ورود به حالت استریوسکوپی
-    function enterStereo() {
-      // بررسی مجدد WebGL قبل از ورود به حالت استریو
+      // بررسی پشتیبانی از WebGL
       if (!checkWebGLSupport()) {
-        alert('دستگاه شما از گرافیک سه‌بعدی پشتیبانی نمی‌کند. امکان نمایش استریوسکوپی وجود ندارد.');
+        loadingElement.style.display = 'none';
+        webglErrorElement.style.display = 'block';
         return;
       }
       
-      setupStereoView();
-      normalView.style.display = 'none';
-      stereoView.style.display = 'flex';
-      isStereoMode = true;
-      
-      // شروع همگام‌سازی دوربین‌ها
-      startCameraSync();
-      
-      // اطلاع به کاربر برای استفاده از عینک VR
-      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        alert('لطفا تلفن خود را در عینک VR قرار دهید. برای خروج دکمه بازگشت را بزنید.');
+      // بررسی پشتیبانی از custom elements
+      if (!checkCustomElementsSupport()) {
+        loadingElement.style.display = 'none';
+        webglErrorElement.innerHTML = '<h2>مرورگر قدیمی</h2><p>مرورگر شما از فناوری‌های لازم پشتیبانی نمی‌کند.</p><p>لطفاً مرورگر خود را به روزرسانی کنید.</p>';
+        webglErrorElement.style.display = 'block';
+        return;
       }
-    }
+      
+      // منتظر ماندن برای بارگذاری کامل model-viewer
+      setTimeout(function() {
+        if (typeof customElements !== 'undefined' && customElements.get('model-viewer')) {
+          loadingElement.style.display = 'none';
+          normalView.style.display = 'block';
+          initApplication();
+        } else {
+          loadingElement.style.display = 'none';
+          webglErrorElement.innerHTML = '<h2>خطای بارگذاری</h2><p>امکان بارگذاری کتابخانه سه‌بعدی وجود ندارد.</p>';
+          webglErrorElement.style.display = 'block';
+        }
+      }, 2000);
+    };
 
-    // خروج از حالت استریوسکوپی
-    function exitStereo() {
-      clearInterval(cameraSyncInterval);
-      stereoView.style.display = 'none';
-      normalView.style.display = 'block';
-      isStereoMode = false;
-    }
+    function initApplication() {
+      var normalView = document.getElementById('normal');
+      var stereoView = document.getElementById('stereo');
+      var mainViewer = document.getElementById('mainViewer');
+      var leftEyeViewer = document.getElementById('leftEye');
+      var rightEyeViewer = document.getElementById('rightEye');
+      
+      var isStereoMode = false;
+      var cameraSyncInterval;
 
-    // همگام‌سازی دوربین‌ها در حالت استریو
-    function startCameraSync() {
-      cameraSyncInterval = setInterval(function() {
-        if (!isStereoMode) return;
+      // تابع برای تجزیه رشته camera-orbit
+      function parseCameraOrbit(orbitString) {
+        if (!orbitString) return { theta: 0, phi: 75, radius: 2 };
         
-        // گرفتن موقعیت فعلی دوربین اصلی
-        var orbit = mainViewer.cameraOrbit;
+        var values = orbitString.split(' ');
+        var theta = parseFloat(values[0]) || 0;
+        var phi = parseFloat(values[1]) || 75;
+        var radius = parseFloat(values[2]) || 2;
+        
+        return { theta: theta, phi: phi, radius: radius };
+      }
+
+      // تابع برای ایجاد رشته camera-orbit
+      function createCameraOrbitString(theta, phi, radius) {
+        return theta + 'deg ' + phi + 'deg ' + radius + 'm';
+      }
+
+      // تنظیمات اولیه برای حالت استریو
+      function setupStereoView() {
+        // استفاده از ویژگی cameraOrbit به جای getAttribute
+        var orbit = mainViewer.cameraOrbit || '0deg 75deg 2m';
         var target = mainViewer.cameraTarget || '0m 0m 0m';
         
-        // تجزیه موقعیت دوربین
         var orbitData = parseCameraOrbit(orbit);
         
-        // ایجاد افست برای ایجاد اثر استریو (IPD - فاصله بین مردمکی)
-        var ipdOffset = 0.5; // میزان افست به درجه
-        
-        // تنظیم دوربین برای چشم چپ
-        var leftOrbit = createCameraOrbitString(
-          orbitData.theta - ipdOffset,
-          orbitData.phi,
-          orbitData.radius
-        );
-        leftEyeViewer.cameraOrbit = leftOrbit;
+        // تنظیم دوربین برای چشم چپ با کمی جابجایی به راست
+        leftEyeViewer.cameraOrbit = orbit;
         leftEyeViewer.cameraTarget = target;
         
-        // تنظیم دوربین برای چشم راست
-        var rightOrbit = createCameraOrbitString(
-          orbitData.theta + ipdOffset,
-          orbitData.phi,
-          orbitData.radius
-        );
-        rightEyeViewer.cameraOrbit = rightOrbit;
+        // تنظیم دوربین برای چشم راست با کمی جابجایی به چپ
+        rightEyeViewer.cameraOrbit = orbit;
         rightEyeViewer.cameraTarget = target;
-      }, 100); // به روز رسانی هر 100 میلی‌ثانیه
-    }
+      }
 
-    // بارگذاری اولیه
-    window.addEventListener('load', function() {
-      // اضافه کردن event listener برای تغییرات دوربین
-      mainViewer.addEventListener('camera-change', function() {
-        if (isStereoMode) {
-          // اگر در حالت استریو هستیم، دوربین‌ها را به روز کنیم
-          startCameraSync();
+      // ورود به حالت استریوسکوپی
+      window.enterStereo = function() {
+        // بررسی مجدد WebGL قبل از ورود به حالت استریو
+        if (!checkWebGLSupport()) {
+          alert('دستگاه شما از گرافیک سه‌بعدی پشتیبانی نمی‌کند. امکان نمایش استریوسکوپی وجود ندارد.');
+          return;
         }
-      });
-    });
+        
+        setupStereoView();
+        normalView.style.display = 'none';
+        stereoView.style.display = 'flex';
+        isStereoMode = true;
+        
+        // شروع همگام‌سازی دوربین‌ها
+        startCameraSync();
+        
+        // اطلاع به کاربر برای استفاده از عینک VR
+        if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          alert('لطفا تلفن خود را در عینک VR قرار دهید. برای خروج دکمه بازگشت را بزنید.');
+        }
+      };
+
+      // خروج از حالت استریوسکوپی
+      window.exitStereo = function() {
+        clearInterval(cameraSyncInterval);
+        stereoView.style.display = 'none';
+        normalView.style.display = 'block';
+        isStereoMode = false;
+      };
+
+      // همگام‌سازی دوربین‌ها در حالت استریو
+      function startCameraSync() {
+        cameraSyncInterval = setInterval(function() {
+          if (!isStereoMode) return;
+          
+          // گرفتن موقعیت فعلی دوربین اصلی
+          var orbit = mainViewer.cameraOrbit;
+          var target = mainViewer.cameraTarget || '0m 0m 0m';
+          
+          // تجزیه موقعیت دوربین
+          var orbitData = parseCameraOrbit(orbit);
+          
+          // ایجاد افست برای ایجاد اثر استریو (IPD - فاصله بین مردمکی)
+          var ipdOffset = 0.5; // میزان افست به درجه
+          
+          // تنظیم دوربین برای چشم چپ
+          var leftOrbit = createCameraOrbitString(
+            orbitData.theta - ipdOffset,
+            orbitData.phi,
+            orbitData.radius
+          );
+          leftEyeViewer.cameraOrbit = leftOrbit;
+          leftEyeViewer.cameraTarget = target;
+          
+          // تنظیم دوربین برای چشم راست
+          var rightOrbit = createCameraOrbitString(
+            orbitData.theta + ipdOffset,
+            orbitData.phi,
+            orbitData.radius
+          );
+          rightEyeViewer.cameraOrbit = rightOrbit;
+          rightEyeViewer.cameraTarget = target;
+        }, 100); // به روز رسانی هر 100 میلی‌ثانیه
+      }
+
+      // اضافه کردن event listener برای تغییرات دوربین
+      if (mainViewer.addEventListener) {
+        mainViewer.addEventListener('camera-change', function() {
+          if (isStereoMode) {
+            // اگر در حالت استریو هستیم، دوربین‌ها را به روز کنیم
+            startCameraSync();
+          }
+        });
+      }
+    }
   </script>
 </body>
 </html>
